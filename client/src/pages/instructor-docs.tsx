@@ -363,23 +363,87 @@ export default function InstructorDocs() {
             <AccordionItem value="vuln-12">
               <AccordionTrigger className="text-left">
                 <div className="flex items-center gap-4">
-                  <Badge>MEDIUM</Badge>
-                  <span className="font-semibold">12. Predictable Session Tokens</span>
+                  <Badge variant="destructive">HIGH</Badge>
+                  <span className="font-semibold">12. Server-Side Request Forgery (SSRF)</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 text-base">
                 <p className="text-muted-foreground">
-                  Session identifiers use weak randomness and are sequential or predictable.
+                  Document fetching endpoint allows fetching arbitrary URLs without validation.
                 </p>
                 <div className="bg-muted p-4 rounded-md">
-                  <p className="font-mono text-sm">Test: Create multiple sessions, analyze token patterns</p>
-                  <p className="font-mono text-sm">Look for: Sequential IDs, timestamp-based tokens</p>
+                  <p className="font-mono text-sm">Location: POST /api/fetch-document</p>
+                  <p className="font-mono text-sm">Test: {"url: \"http://localhost:5000/api/config\""}</p>
+                  <p className="font-mono text-sm">Can fetch internal resources and expose sensitive data</p>
                 </div>
-                <p className="text-sm"><strong>Tools:</strong> Burp Sequencer, manual analysis</p>
+                <p className="text-sm"><strong>Tools:</strong> Burp Suite, curl</p>
+                <p className="text-sm"><strong>Impact:</strong> Internal network scanning, credential exposure</p>
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="vuln-13">
+            <AccordionItem value="vuln-12b">
+              <AccordionTrigger className="text-left">
+                <div className="flex items-center gap-4">
+                  <Badge variant="destructive">HIGH</Badge>
+                  <span className="font-semibold">13. Local File Inclusion (LFI)</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 text-base">
+                <p className="text-muted-foreground">
+                  Document viewer endpoint vulnerable to path traversal attacks.
+                </p>
+                <div className="bg-muted p-4 rounded-md">
+                  <p className="font-mono text-sm">Location: GET /api/view-document?file=...</p>
+                  <p className="font-mono text-sm">Test: file=../../../../etc/passwd</p>
+                  <p className="font-mono text-sm">Can read arbitrary files from the server</p>
+                </div>
+                <p className="text-sm"><strong>Tools:</strong> Browser, Burp Suite</p>
+                <p className="text-sm"><strong>Impact:</strong> Source code disclosure, credential theft</p>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="vuln-12c">
+              <AccordionTrigger className="text-left">
+                <div className="flex items-center gap-4">
+                  <Badge>MEDIUM</Badge>
+                  <span className="font-semibold">14. XML External Entity (XXE) Injection</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 text-base">
+                <p className="text-muted-foreground">
+                  Order import functionality processes XML without disabling external entities.
+                </p>
+                <div className="bg-muted p-4 rounded-md">
+                  <p className="font-mono text-sm">Location: POST /api/import-order</p>
+                  <p className="font-mono text-sm">Test: Send malicious XML with external entity</p>
+                  <p className="font-mono text-sm">{`<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>`}</p>
+                </div>
+                <p className="text-sm"><strong>Tools:</strong> Burp Suite, custom payloads</p>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="vuln-12d">
+              <AccordionTrigger className="text-left">
+                <div className="flex items-center gap-4">
+                  <Badge>MEDIUM</Badge>
+                  <span className="font-semibold">15. Predictable Session Tokens</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 text-base">
+                <p className="text-muted-foreground">
+                  Session identifiers use sequential counter plus timestamp, making them predictable.
+                </p>
+                <div className="bg-muted p-4 rounded-md">
+                  <p className="font-mono text-sm">Pattern: sess_1000_timestamp, sess_1001_timestamp, etc.</p>
+                  <p className="font-mono text-sm">Test: Create multiple sessions, analyze cookie patterns</p>
+                  <p className="font-mono text-sm">Predict other users' session IDs to hijack sessions</p>
+                </div>
+                <p className="text-sm"><strong>Tools:</strong> Burp Sequencer, manual analysis</p>
+                <p className="text-sm"><strong>Impact:</strong> Session hijacking, account takeover</p>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="vuln-13x">
               <AccordionTrigger className="text-left">
                 <div className="flex items-center gap-4">
                   <Badge>LOW</Badge>
@@ -399,7 +463,7 @@ export default function InstructorDocs() {
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="vuln-14">
+            <AccordionItem value="vuln-14x">
               <AccordionTrigger className="text-left">
                 <div className="flex items-center gap-4">
                   <Badge>MEDIUM</Badge>
@@ -418,7 +482,7 @@ export default function InstructorDocs() {
               </AccordionContent>
             </AccordionItem>
 
-            <AccordionItem value="vuln-15">
+            <AccordionItem value="vuln-15x">
               <AccordionTrigger className="text-left">
                 <div className="flex items-center gap-4">
                   <Badge>MEDIUM</Badge>

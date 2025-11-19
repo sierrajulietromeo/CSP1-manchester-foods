@@ -65,16 +65,14 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-6 border-b border-sidebar-border">
-        <Link href="/dashboard">
-          <a className="flex items-center gap-2" data-testid="link-sidebar-logo">
-            <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-semibold text-sm">MFF</span>
-            </div>
-            <div>
-              <h2 className="font-semibold text-sidebar-foreground">Manchester Fresh</h2>
-              <p className="text-xs text-muted-foreground">Customer Portal</p>
-            </div>
-          </a>
+        <Link href="/dashboard" className="flex items-center gap-2" data-testid="link-sidebar-logo">
+          <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground font-semibold text-sm">MFF</span>
+          </div>
+          <div>
+            <h2 className="font-semibold text-sidebar-foreground">Manchester Fresh</h2>
+            <p className="text-xs text-muted-foreground">Customer Portal</p>
+          </div>
         </Link>
       </SidebarHeader>
 
@@ -91,10 +89,8 @@ export function AppSidebar() {
                     data-testid={`link-sidebar-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     <Link href={item.url}>
-                      <a>
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.title}</span>
-                      </a>
+                      <item.icon className="w-4 h-4" />
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

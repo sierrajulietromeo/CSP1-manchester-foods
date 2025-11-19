@@ -17,28 +17,26 @@ export function PublicHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
-          <Link href="/">
-            <a className="flex items-center gap-2" data-testid="link-header-logo">
-              <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-semibold text-sm">MFF</span>
-              </div>
-              <span className="font-semibold text-foreground hidden sm:inline">
-                Manchester Fresh Foods
-              </span>
-            </a>
+          <Link href="/" className="flex items-center gap-2" data-testid="link-header-logo">
+            <div className="w-8 h-8 rounded-md bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-semibold text-sm">MFF</span>
+            </div>
+            <span className="font-semibold text-foreground hidden sm:inline">
+              Manchester Fresh Foods
+            </span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-6">
             {navItems.map((item) => (
-              <Link key={item.href} href={item.href}>
-                <a
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    location === item.href ? "text-foreground" : "text-muted-foreground"
-                  }`}
-                  data-testid={`link-nav-${item.label.toLowerCase()}`}
-                >
-                  {item.label}
-                </a>
+              <Link 
+                key={item.href} 
+                href={item.href}
+                className={`text-sm font-medium transition-colors hover:text-primary ${
+                  location === item.href ? "text-foreground" : "text-muted-foreground"
+                }`}
+                data-testid={`link-nav-${item.label.toLowerCase()}`}
+              >
+                {item.label}
               </Link>
             ))}
           </nav>
@@ -73,15 +71,15 @@ export function PublicHeader() {
           <div className="md:hidden py-4 border-t border-border">
             <nav className="flex flex-col gap-4">
               {navItems.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  <a
-                    className={`text-sm font-medium ${
-                      location === item.href ? "text-foreground" : "text-muted-foreground"
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.label}
-                  </a>
+                <Link 
+                  key={item.href} 
+                  href={item.href}
+                  className={`text-sm font-medium ${
+                    location === item.href ? "text-foreground" : "text-muted-foreground"
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.label}
                 </Link>
               ))}
               <div className="flex flex-col gap-2 mt-4">

@@ -3,12 +3,20 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import session from "express-session";
 
+// VULNERABILITY: Predictable session ID generation
+let sessionCounter = 1000;
+function generatePredictableSessionId(): string {
+  // VULNERABILITY: Sequential, predictable session IDs
+  return `sess_${sessionCounter++}_${Date.now()}`;
+}
+
 // VULNERABILITY: Storing session in memory - insecure for production
 // VULNERABILITY: Predictable session secret
 const sessionMiddleware = session({
   secret: "manchester-fresh-2024", // VULNERABILITY: Hardcoded weak secret
   resave: false,
   saveUninitialized: false,
+  genid: () => generatePredictableSessionId(), // VULNERABILITY: Predictable session IDs
   cookie: {
     secure: false, // VULNERABILITY: Not requiring HTTPS
     httpOnly: true,
@@ -357,6 +365,90 @@ Disallow: /backup
 Disallow: /instructor
 Disallow: /.env
 `);
+  });
+
+  // VULNERABILITY: Server-Side Request Forgery (SSRF) in document fetching
+  app.post("/api/fetch-document", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL required" });
+      }
+
+      // VULNERABILITY: No URL validation - can fetch internal resources
+      // Attack: url = "http://localhost:5000/api/config" or "file:///etc/passwd"
+      const response = await fetch(url);
+      const data = await response.text();
+
+      res.json({
+        url,
+        content: data,
+        warning: "VULNERABILITY: SSRF - fetches arbitrary URLs",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // VULNERABILITY: Local File Inclusion (LFI) in document viewer
+  app.get("/api/view-document", (req, res) => {
+    const { file } = req.query;
+
+    if (!file) {
+      return res.status(400).json({ error: "File parameter required" });
+    }
+
+    // VULNERABILITY: Path traversal - no sanitization
+    // Attack: file=../../../../etc/passwd
+    try {
+      const fs = require("fs");
+      const content = fs.readFileSync(file as string, "utf-8");
+      
+      res.json({
+        file,
+        content,
+        warning: "VULNERABILITY: LFI - reads arbitrary files",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message, hint: "Try ../../../../etc/passwd" });
+    }
+  });
+
+  // VULNERABILITY: XML External Entity (XXE) injection
+  app.post("/api/import-order", async (req, res) => {
+    try {
+      const { xml } = req.body;
+
+      if (!xml) {
+        return res.status(400).json({ error: "XML required" });
+      }
+
+      // VULNERABILITY: Unsafe XML parsing without disabling external entities
+      // Attack: Include malicious XML with external entity references
+      // Example: <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><order>&xxe;</order>
+      
+      res.json({
+        message: "Order import functionality - VULNERABILITY: XXE injection possible",
+        xmlReceived: xml,
+        warning: "XML parser would process external entities in production",
+        hint: "Try: <!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><order>&xxe;</order>",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // VULNERABILITY: File upload with no restrictions
+  app.post("/api/upload", (req, res) => {
+    // VULNERABILITY: No file type validation, size limits, or content scanning
+    // In a real implementation, this would accept malicious files
+    
+    res.json({
+      message: "File upload endpoint - VULNERABILITY: No validation",
+      warning: "Accepts any file type, no size limits, no virus scanning",
+      hint: "Could upload web shells, executables, or malicious scripts",
+    });
   });
 
   const httpServer = createServer(app);

@@ -124,7 +124,7 @@ export default function Home() {
                   Established in 2015, Manchester Fresh Foods has been serving the hospitality and retail sectors across Greater Manchester with premium quality fresh produce.
                 </p>
                 <p>
-                  Our warehouse and distribution center in Trafford Park operates 7 days a week, ensuring restaurants, bars, cafes and independent retailers receive the freshest fruits, vegetables and ingredients.
+                  Our warehouse and distribution centre in Trafford Park operates 7 days a week, ensuring restaurants, bars, cafes and independent retailers receive the freshest fruits, vegetables and ingredients.
                 </p>
                 <p>
                   We pride ourselves on reliable service, competitive pricing, and building long-term relationships with our customers across the region.
@@ -141,7 +141,7 @@ export default function Home() {
             <div className="rounded-md overflow-hidden">
               <img 
                 src={warehouseImage} 
-                alt="Manchester Fresh Foods warehouse and distribution center"
+                alt="Manchester Fresh Foods warehouse and distribution centre"
                 className="w-full h-auto"
               />
             </div>

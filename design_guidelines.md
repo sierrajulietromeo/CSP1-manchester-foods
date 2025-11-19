@@ -53,7 +53,7 @@
 **Required Images:**
 1. **Hero Image:** Manchester Fresh Foods delivery van loaded with colorful fresh produce boxes, Manchester cityscape background (full-width, 80vh)
 2. **Product Images:** Individual produce items - fruits, vegetables, fresh herbs (catalog grid)
-3. **About Section:** Warehouse/distribution center photo showing food safety standards
+3. **About Section:** Warehouse/distribution centre photo showing food safety standards
 4. **Coverage Map:** Illustrated or screenshot map showing delivery zones across Manchester
 
 **Placement:** Hero immediately below header, product images in catalog grid, supporting images in features/about sections
