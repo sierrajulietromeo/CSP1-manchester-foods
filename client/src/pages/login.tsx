@@ -117,10 +117,18 @@ export default function Login() {
               </p>
             </div>
 
-            <div className="mt-4 p-4 bg-muted/50 rounded-md">
-              <p className="text-xs text-muted-foreground text-center">
-                For demo purposes, use: admin / admin123
+            <div className="mt-4 p-4 bg-muted/50 rounded-md space-y-2">
+              <p className="text-xs font-semibold text-foreground text-center mb-2">
+                Demo Accounts:
               </p>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground text-center">
+                  <span className="font-medium">Customer:</span> thepubco / welcome123
+                </p>
+                <p className="text-xs text-muted-foreground text-center">
+                  <span className="font-medium">Admin:</span> admin / admin123
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
