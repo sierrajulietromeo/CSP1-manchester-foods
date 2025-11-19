@@ -19,7 +19,7 @@ The application is designed to teach students how to:
 
 - **Frontend**: React 18, TypeScript, Tailwind CSS, Shadcn UI, Wouter (routing)
 - **Backend**: Express.js, TypeScript, Node.js
-- **Storage**: In-memory storage (MemStorage) for educational simplicity
+- **Database**: SQLite (better-sqlite3) with intentionally vulnerable SQL queries
 - **Session Management**: Express-session (deliberately insecure configuration)
 - **Design**: Professional green logistics theme (circa 2018-2019 aesthetic)
 
@@ -47,11 +47,15 @@ The application is designed to teach students how to:
 │   │   └── index.css                # Tailwind config with green theme
 ├── server/
 │   ├── routes.ts                    # All API endpoints (intentionally vulnerable)
-│   ├── storage.ts                   # In-memory data storage
+│   ├── storage.ts                   # SQLite storage with vulnerable SQL queries
+│   ├── database.ts                  # SQLite database initialization and seed data
+│   ├── reset-database.ts            # Utility script to reset database for testing
 │   └── index.ts                     # Express server setup
 ├── shared/
 │   └── schema.ts                    # Shared data models (Drizzle + Zod)
-└── design_guidelines.md             # UI/UX design specifications
+├── database.sqlite                  # SQLite database file (auto-created)
+├── design_guidelines.md             # UI/UX design specifications
+└── STUDENT_GUIDE.md                 # Educational guide with SQL injection examples
 ```
 
 ## 15 Intentional Security Vulnerabilities
@@ -234,6 +238,7 @@ The application will run on port 5000 with:
 - Frontend served via Vite
 - Backend API on `/api/*` routes
 - Session management with in-memory store
+- SQLite database with seed data
 
 ### Design Aesthetic
 
@@ -245,11 +250,13 @@ The application uses a professional but dated (2018-2019 era) design to make vul
 
 ### Storage Architecture
 
-Uses in-memory storage (`MemStorage`) for educational simplicity:
-- No database setup required
-- Data persists only during runtime
-- Easy to reset by restarting application
-- Storage interface in `server/storage.ts`
+Uses SQLite database (`database.sqlite`) with intentionally vulnerable SQL queries:
+- **Database**: SQLite file created automatically on first run
+- **Seed Data**: Pre-populated with users, products, orders, reviews, and contact submissions
+- **Vulnerable Queries**: String concatenation instead of parameterized queries for authentic SQL injection testing
+- **Reset Utility**: Run `tsx server/reset-database.ts` to delete and reseed the database
+- **Storage Interface**: `server/storage.ts` with `SQLiteStorage` class implementing all CRUD operations
+- **Data Persistence**: Database persists across restarts (unlike in-memory storage)
 
 ## Security Remediation Examples
 

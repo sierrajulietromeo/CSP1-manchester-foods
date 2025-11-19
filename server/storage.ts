@@ -1059,7 +1059,9 @@ export class SQLiteStorage implements IStorage {
   }
 
   async getOrder(id: string): Promise<Order | undefined> {
-    const row = this.db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as any;
+    // VULNERABILITY: SQL Injection via string concatenation
+    // SECURE VERSION: const row = this.db.prepare("SELECT * FROM orders WHERE id = ?").get(id) as any;
+    const row = this.db.prepare(`SELECT * FROM orders WHERE id = '${id}'`).get() as any;
     if (!row) return undefined;
 
     return {
@@ -1107,7 +1109,9 @@ export class SQLiteStorage implements IStorage {
   }
 
   async getOrderItems(orderId: string): Promise<OrderItem[]> {
-    const rows = this.db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(orderId) as any[];
+    // VULNERABILITY: SQL Injection via string concatenation
+    // SECURE VERSION: const rows = this.db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(orderId) as any[];
+    const rows = this.db.prepare(`SELECT * FROM order_items WHERE order_id = '${orderId}'`).all() as any[];
     return rows.map(row => ({
       id: row.id,
       orderId: row.order_id,
