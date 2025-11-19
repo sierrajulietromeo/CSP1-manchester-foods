@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import session from "express-session";
+import { readFileSync } from "fs";
 
 // VULNERABILITY: Predictable session ID generation
 let sessionCounter = 1000;
@@ -402,8 +403,7 @@ Disallow: /.env
     // VULNERABILITY: Path traversal - no sanitization
     // Attack: file=../../../../etc/passwd
     try {
-      const fs = require("fs");
-      const content = fs.readFileSync(file as string, "utf-8");
+      const content = readFileSync(file as string, "utf-8");
       
       res.json({
         file,

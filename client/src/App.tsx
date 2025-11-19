@@ -36,7 +36,7 @@ function PublicRouter() {
   );
 }
 
-function DashboardRouter() {
+function DashboardLayout({ children }: { children: React.ReactNode }) {
   const style = {
     "--sidebar-width": "20rem",
     "--sidebar-width-icon": "4rem",
@@ -54,14 +54,7 @@ function DashboardRouter() {
             </div>
           </header>
           <main className="flex-1 overflow-auto p-8">
-            <Switch>
-              <Route path="/dashboard" component={Dashboard} />
-              <Route path="/dashboard/order" component={PlaceOrder} />
-              <Route path="/dashboard/orders" component={Orders} />
-              <Route path="/dashboard/invoices" component={Invoices} />
-              <Route path="/dashboard/profile" component={Profile} />
-              <Route component={NotFound} />
-            </Switch>
+            {children}
           </main>
         </div>
       </div>
@@ -72,8 +65,30 @@ function DashboardRouter() {
 function Router() {
   return (
     <Switch>
-      <Route path="/dashboard" nest>
-        <DashboardRouter />
+      <Route path="/dashboard">
+        <DashboardLayout>
+          <Dashboard />
+        </DashboardLayout>
+      </Route>
+      <Route path="/dashboard/place-order">
+        <DashboardLayout>
+          <PlaceOrder />
+        </DashboardLayout>
+      </Route>
+      <Route path="/dashboard/orders">
+        <DashboardLayout>
+          <Orders />
+        </DashboardLayout>
+      </Route>
+      <Route path="/dashboard/invoices">
+        <DashboardLayout>
+          <Invoices />
+        </DashboardLayout>
+      </Route>
+      <Route path="/dashboard/profile">
+        <DashboardLayout>
+          <Profile />
+        </DashboardLayout>
       </Route>
       <Route>
         <PublicRouter />

@@ -25,7 +25,7 @@ const menuItems = [
   },
   {
     title: "Place Order",
-    url: "/dashboard/order",
+    url: "/dashboard/place-order",
     icon: ShoppingCart,
   },
   {
