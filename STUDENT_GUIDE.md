@@ -6,7 +6,7 @@ This is a deliberately vulnerable B2B food delivery application created for **pe
 
 ### ⚠️ Important
 - This application is **ONLY for educational use** in controlled environments
-- Never use these techniques on real systems without authorization
+- Never use these techniques on real systems without authorisation
 - Document all findings professionally as you would in a real penetration test
 
 ---
@@ -39,7 +39,7 @@ Use these credentials to explore the application:
 ## Example Vulnerability: Viewing Other Users' Orders (IDOR)
 
 ### What is IDOR?
-Insecure Direct Object Reference (IDOR) occurs when an application exposes direct references to internal objects (like database IDs) without proper authorization checks.
+Insecure Direct Object Reference (IDOR) occurs when an application exposes direct references to internal objects (like database IDs) without proper authorisation checks.
 
 ### How to Test This Vulnerability
 
@@ -113,7 +113,7 @@ app.get("/api/orders/:id", async (req, res) => {
   
   // ✅ CHECK OWNERSHIP
   if (order.userId !== req.session.userId) {
-    return res.status(403).json({ error: "Unauthorized" });
+    return res.status(403).json({ error: "Unauthorised" });
   }
   
   res.json(order);
@@ -184,7 +184,7 @@ When documenting vulnerabilities, include:
 - Practice responsible disclosure principles
 
 ❌ **DON'T**:
-- Test real websites without authorization
+- Test real websites without authorisation
 - Share these techniques for malicious purposes
 - Deploy this vulnerable code to production
 - Use customer data outside this educational context
@@ -193,7 +193,7 @@ When documenting vulnerabilities, include:
 
 ## Need Help?
 
-**Instructor Documentation**: Navigate to `/instructor` and enter password `penetration-test-2024` for complete vulnerability details and testing hints.
+**Instructor Documentation**: Navigate to `/instructor` and enter password `instructor2024` for complete vulnerability details and testing hints.
 
 **Stuck on a vulnerability?**: The instructor docs provide:
 - All 15 vulnerability locations
