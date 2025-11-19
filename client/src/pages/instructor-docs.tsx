@@ -466,19 +466,29 @@ export default function InstructorDocs() {
             <AccordionItem value="vuln-14x">
               <AccordionTrigger className="text-left">
                 <div className="flex items-center gap-4">
-                  <Badge>MEDIUM</Badge>
-                  <span className="font-semibold">14. Information Disclosure via Exposed Files</span>
+                  <Badge variant="destructive">HIGH</Badge>
+                  <span className="font-semibold">14. Exposed Customer PII & Financial Data</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 text-base">
                 <p className="text-muted-foreground">
-                  .git directory, robots.txt revealing admin paths, and backup files are accessible.
+                  Unprotected customer database backup file exposes sensitive personal and financial information.
                 </p>
-                <div className="bg-muted p-4 rounded-md">
-                  <p className="font-mono text-sm">Test URLs: /.git/config, /robots.txt, /.env.backup</p>
-                  <p className="font-mono text-sm">Reveals: Source code, hidden admin paths, credentials</p>
+                <div className="bg-muted p-4 rounded-md space-y-2">
+                  <p className="font-mono text-sm font-semibold">Critical Discovery:</p>
+                  <p className="font-mono text-sm">GET /data/customers.txt</p>
+                  <p className="font-mono text-sm">Hint: Check robots.txt for hidden paths</p>
+                  <p className="font-mono text-sm mt-3">Exposed Information:</p>
+                  <p className="font-mono text-sm">• 7 customer accounts with full contact details</p>
+                  <p className="font-mono text-sm">• Manchester addresses, phone numbers, emails</p>
+                  <p className="font-mono text-sm">• Current account balances (£0 to £3,876)</p>
+                  <p className="font-mono text-sm">• Credit limits and payment history</p>
+                  <p className="font-mono text-sm">• Admin credentials exposed</p>
+                  <p className="font-mono text-sm">• Notes about overdue payments & credit holds</p>
                 </div>
-                <p className="text-sm"><strong>Tools:</strong> Nikto, dirb, manual URL enumeration</p>
+                <p className="text-sm"><strong>Tools:</strong> Browser, curl, Nikto, dirb</p>
+                <p className="text-sm"><strong>Impact:</strong> GDPR breach, identity theft, competitive intelligence exposure, financial fraud</p>
+                <p className="text-sm"><strong>Other Files:</strong> /.git/HEAD, /api/config, /robots.txt also leak information</p>
               </AccordionContent>
             </AccordionItem>
 

@@ -365,6 +365,102 @@ Disallow: /.git
 Disallow: /backup
 Disallow: /instructor
 Disallow: /.env
+Disallow: /data/customers.txt
+`);
+  });
+
+  // VULNERABILITY: Exposed customer data file with PII and financial information
+  app.get("/data/customers.txt", (req, res) => {
+    res.set("Content-Type", "text/plain");
+    res.send(`MANCHESTER FRESH FOODS - CUSTOMER DATABASE BACKUP
+Generated: 15 November 2025
+CONFIDENTIAL - INTERNAL USE ONLY
+
+=== CUSTOMER ACCOUNTS WITH CURRENT BALANCES ===
+
+ACCOUNT: ACC-1001
+Company: The Pub Company Ltd
+Contact: Sarah Johnson
+Email: orders@thepubcompany.co.uk
+Phone: 0161 789 4521
+Address: 45 Deansgate, Manchester M3 2AY
+Current Balance: £1,247.50 (30 days overdue)
+Credit Limit: £5,000.00
+Last Payment: 28 October 2025 - £2,100.00
+
+ACCOUNT: ACC-1002
+Company: Bella Italia Restaurant
+Contact: Marco Rossi
+Email: procurement@bella-italia.co.uk
+Phone: 0161 832 6574
+Address: 78 King Street, Manchester M2 4WQ
+Current Balance: £0.00
+Credit Limit: £3,000.00
+Last Payment: 10 November 2025 - £987.40
+
+ACCOUNT: ACC-1003
+Company: Green Leaf Café
+Contact: Emma Williams
+Email: manager@greenleafcafe.com
+Phone: 0161 955 3344
+Address: 12 Oxford Road, Manchester M1 5QA
+Current Balance: £342.80
+Credit Limit: £2,000.00
+Last Payment: 1 November 2025 - £654.20
+
+ACCOUNT: ACC-1004
+Company: Royal Curry House
+Contact: Raj Patel
+Email: kitchen@royalcurryhouse.co.uk
+Phone: 0161 273 8899
+Address: 156 Wilmslow Road, Manchester M14 5LH
+Current Balance: £0.00
+Credit Limit: £4,000.00
+Last Payment: 12 November 2025 - £1,456.30
+
+ACCOUNT: ACC-1005
+Company: Manchester City Hotel
+Contact: David Chen
+Email: catering@manchestercityhotel.com
+Phone: 0161 234 9876
+Address: 200 Portland Street, Manchester M1 3HU
+Current Balance: £3,876.40 (60 days overdue - CREDIT HOLD)
+Credit Limit: £10,000.00
+Last Payment: 18 September 2025 - £5,243.00
+
+ACCOUNT: ACC-1006
+Company: The Northern Quarter Bistro
+Contact: Rachel Green
+Email: manager@nqbistro.co.uk
+Phone: 0161 834 5567
+Address: 34 Oldham Street, Manchester M1 1JN
+Current Balance: £567.90
+Credit Limit: £2,500.00
+Last Payment: 5 November 2025 - £1,234.50
+
+ACCOUNT: ACC-1007
+Company: Spinningfields Grill
+Contact: Tom Anderson
+Email: procurement@spinningfieldsgrill.com
+Phone: 0161 819 2200
+Address: 1 Hardman Square, Manchester M3 3EB
+Current Balance: £0.00
+Credit Limit: £6,000.00
+Last Payment: 13 November 2025 - £2,987.60
+
+=== ADMIN CREDENTIALS ===
+Username: admin
+Password: admin123
+Email: admin@manchesterfresh.co.uk
+Phone: 0161 234 5678
+
+=== NOTES ===
+- ACC-1005 (City Hotel) is on credit hold due to non-payment
+- ACC-1001 (Pub Company) requires follow-up call for overdue balance
+- All customers on NET 30 payment terms
+- Database last synced: 15/11/2025 03:45 GMT
+
+--- END OF REPORT ---
 `);
   });
 
