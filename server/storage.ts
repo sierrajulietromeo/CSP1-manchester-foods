@@ -456,7 +456,8 @@ export class MemStorage implements IStorage {
 
   // Orders
   async getAllOrders(): Promise<Order[]> {
-    return Array.from(this.orders.values());
+    return Array.from(this.orders.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   async getUserOrders(userId: string): Promise<Order[]> {

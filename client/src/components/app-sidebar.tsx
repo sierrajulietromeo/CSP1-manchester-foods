@@ -13,47 +13,64 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "Place Order",
-    url: "/dashboard/place-order",
-    icon: ShoppingCart,
-  },
-  {
-    title: "My Orders",
-    url: "/dashboard/orders",
-    icon: Package,
-  },
-  {
-    title: "Invoices",
-    url: "/dashboard/invoices",
-    icon: FileText,
-  },
-  {
-    title: "My Profile",
-    url: "/dashboard/profile",
-    icon: User,
-  },
-];
+import type { User as UserType } from "@shared/schema";
 
 export function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Fetch current user to determine role
+  const { data: user } = useQuery<UserType>({
+    queryKey: ["/api/user"],
+  });
+
+  const isAdmin = user?.role === "admin";
+
+  // Dynamic menu items based on user role
+  const menuItems = [
+    {
+      title: "Dashboard",
+      url: "/dashboard",
+      icon: Home,
+      showFor: ["admin", "customer"],
+    },
+    {
+      title: "Place Order",
+      url: "/dashboard/place-order",
+      icon: ShoppingCart,
+      showFor: ["customer"], // Only customers can place orders
+    },
+    {
+      title: isAdmin ? "All Orders" : "My Orders",
+      url: "/dashboard/orders",
+      icon: Package,
+      showFor: ["admin", "customer"],
+    },
+    {
+      title: "Invoices",
+      url: "/dashboard/invoices",
+      icon: FileText,
+      showFor: ["customer"], // Only customers have invoices
+    },
+    {
+      title: isAdmin ? "Profile" : "My Profile",
+      url: "/dashboard/profile",
+      icon: User,
+      showFor: ["admin", "customer"],
+    },
+  ].filter(item => item.showFor.includes(user?.role || "customer"));
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("POST", "/api/logout", {});
     },
     onSuccess: () => {
+      // Clear all cached queries to prevent data leakage between users
+      queryClient.clear();
+      
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out",
@@ -71,7 +88,9 @@ export function AppSidebar() {
           </div>
           <div>
             <h2 className="font-semibold text-sidebar-foreground">Manchester Fresh</h2>
-            <p className="text-xs text-muted-foreground">Customer Portal</p>
+            <p className="text-xs text-muted-foreground">
+              {isAdmin ? "Admin Portal" : "Customer Portal"}
+            </p>
           </div>
         </Link>
       </SidebarHeader>

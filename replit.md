@@ -138,12 +138,20 @@ The application is designed to teach students how to:
 - **Products**: Fresh produce catalogue with search functionality
 - **Contact**: Contact form for customer enquiries
 
-### Customer Portal (Authentication Required)
+### Customer Portal (Authentication Required - Customers Only)
 - **Dashboard**: Overview with recent orders and statistics
-- **Place Order**: Multi-step order placement form
-- **Orders**: Order history and status tracking
+- **Place Order**: Multi-step order placement form (customers only - admins cannot access)
+- **My Orders**: Order history and status tracking for the logged-in customer
 - **Invoices**: Invoice viewing and download
-- **Profile**: User profile management (editable bio with XSS)
+- **My Profile**: User profile management (editable bio with XSS)
+
+### Admin Portal (Authentication Required - Admin Only)
+- **Dashboard**: System overview
+- **All Orders**: Complete view of all customer orders with customer information
+  - Shows customer company names and contact persons
+  - Searchable by customer name, order number, or status
+  - Admins **cannot** place orders (only view/manage)
+- **Profile**: Admin profile management
 
 ### Instructor Documentation
 - **Access**: `/instructor` route, password-protected
@@ -165,13 +173,18 @@ All content uses:
 ## Default Test Accounts
 
 ```
-Admin Account:
+Admin Account (Management Portal - View All Orders, No Order Placement):
   Username: admin
   Password: admin123
 
-Test User:
-  Username: testuser
-  Password: testpass123
+Customer Accounts (Can Place Orders):
+  Username: thepubco
+  Password: welcome123
+  Company: The Pub Company Ltd
+
+  Username: bella_italia
+  Password: pasta2024
+  Company: Bella Italia Restaurant
 ```
 
 ## Testing Recommendations

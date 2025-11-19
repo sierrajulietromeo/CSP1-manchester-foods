@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { type Order } from "@shared/schema";
+import { type Order, type User } from "@shared/schema";
 import { useState } from "react";
 import { Loader2, Search, Package } from "lucide-react";
 import {
@@ -14,24 +14,42 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+type EnrichedOrder = Order & {
+  customerName?: string;
+  customerContact?: string;
+};
+
 export default function Orders() {
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: orders, isLoading } = useQuery<Order[]>({
+  const { data: currentUser, isLoading: isLoadingUser } = useQuery<User>({
+    queryKey: ["/api/user"],
+  });
+
+  const { data: orders, isLoading: isLoadingOrders } = useQuery<EnrichedOrder[]>({
     queryKey: ["/api/orders"],
   });
 
-  const filteredOrders = orders?.filter(order =>
-    order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.status.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const isAdmin = currentUser?.role === "admin";
+  const isLoading = isLoadingUser || isLoadingOrders;
+
+  const filteredOrders = orders?.filter(order => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      order.orderNumber.toLowerCase().includes(searchLower) ||
+      order.status.toLowerCase().includes(searchLower) ||
+      (order.customerName && order.customerName.toLowerCase().includes(searchLower))
+    );
+  });
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-semibold text-foreground mb-2">My Orders</h1>
+        <h1 className="text-3xl font-semibold text-foreground mb-2">
+          {isAdmin ? "All Orders" : "My Orders"}
+        </h1>
         <p className="text-muted-foreground">
-          View and track all your orders
+          {isAdmin ? "View and manage all customer orders" : "View and track all your orders"}
         </p>
       </div>
 
@@ -39,8 +57,12 @@ export default function Orders() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <CardTitle>Order History</CardTitle>
-              <CardDescription>All your orders in one place</CardDescription>
+              <CardTitle>
+                {isAdmin ? "All Customer Orders" : "Order History"}
+              </CardTitle>
+              <CardDescription>
+                {isAdmin ? "Manage orders from all customers" : "All your orders in one place"}
+              </CardDescription>
             </div>
             <div className="w-full md:w-64">
               <div className="relative">
@@ -68,6 +90,7 @@ export default function Orders() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Order #</TableHead>
+                    {isAdmin && <TableHead>Customer</TableHead>}
                     <TableHead>Date</TableHead>
                     <TableHead>Delivery Date</TableHead>
                     <TableHead>Status</TableHead>
@@ -80,6 +103,18 @@ export default function Orders() {
                       <TableCell className="font-medium">
                         {order.orderNumber}
                       </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{order.customerName}</div>
+                            {order.customerContact && (
+                              <div className="text-xs text-muted-foreground">
+                                {order.customerContact}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell>
                         {new Date(order.createdAt).toLocaleDateString()}
                       </TableCell>

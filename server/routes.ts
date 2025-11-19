@@ -240,8 +240,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const orders = await storage.getUserOrders(req.session.userId);
-    res.json(orders);
+    // Check if user is admin
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    // Admin sees ALL orders with customer info, customers see only their own
+    if (user.role === "admin") {
+      const allOrders = await storage.getAllOrders();
+      
+      // Enrich orders with customer information for admin view
+      const enrichedOrders = await Promise.all(
+        allOrders.map(async (order) => {
+          const customer = await storage.getUser(order.userId);
+          return {
+            ...order,
+            customerName: customer?.companyName || customer?.username || "Unknown",
+            customerContact: customer?.contactPerson,
+          };
+        })
+      );
+      
+      res.json(enrichedOrders);
+    } else {
+      const orders = await storage.getUserOrders(req.session.userId);
+      res.json(orders);
+    }
   });
 
   // VULNERABILITY: IDOR - Can access any order by ID
@@ -258,6 +283,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders", async (req, res) => {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    // Check if user is admin - admins cannot place orders
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+
+    if (user.role === "admin") {
+      return res.status(403).json({ error: "Administrators cannot place orders" });
     }
 
     try {
