@@ -192,6 +192,21 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="bg-muted/50 border-t border-border py-6">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-muted-foreground">
+              © 2025 Manchester Fresh Foods. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground/80 italic">
+              ⚠️ This is a fictional educational application created for cybersecurity training purposes.
+              Not a real business.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
