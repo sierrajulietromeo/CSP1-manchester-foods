@@ -917,16 +917,32 @@ export class SQLiteStorage implements IStorage {
     const sql = `SELECT * FROM products WHERE name LIKE '%${query}%' OR category LIKE '%${query}%'`;
     const rows = this.db.prepare(sql).all() as any[];
 
-    return rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      category: row.category,
-      unit: row.unit,
-      pricePerUnit: row.price_per_unit.toString(),
-      imageUrl: row.image_url,
-      stock: row.stock,
-    }));
+    return rows.map(row => {
+      try {
+        return {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          category: row.category,
+          unit: row.unit,
+          pricePerUnit: row.price_per_unit?.toString() || '',
+          imageUrl: row.image_url,
+          stock: row.stock,
+        };
+      } catch (e) {
+        // Handle UNION injection results that don't match Product schema
+        return {
+          id: row.id || '',
+          name: row.name || row.username || '',
+          description: row.description || row.email || '',
+          category: row.category || '',
+          unit: row.unit || '',
+          pricePerUnit: '0',
+          imageUrl: null,
+          stock: 0,
+        };
+      }
+    });
   }
 
   // Safe methods (use parameterized queries)

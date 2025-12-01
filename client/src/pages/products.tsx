@@ -12,13 +12,11 @@ export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: products, isLoading } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
+    queryKey: [searchTerm ? `/api/products?search=${encodeURIComponent(searchTerm)}` : "/api/products"],
   });
 
-  const filteredProducts = products?.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Use server-side results directly
+  const filteredProducts = products;
 
   return (
     <div className="min-h-screen py-12 bg-background">

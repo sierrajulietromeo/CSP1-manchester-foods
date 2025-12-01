@@ -117,7 +117,7 @@ The application is designed to teach students how to:
 
 ### 12. Server-Side Request Forgery (SSRF) (HIGH)
 - **Endpoint**: `POST /api/fetch-document`
-- **Attack**: `{"url": "http://localhost:5000/api/config"}`
+- **Attack**: `{"url": "http://<TARGETIP>:5000/api/config"}`
 - **Impact**: Internal resource access, credential exposure
 
 ### 13. Local File Inclusion (LFI) (HIGH)
