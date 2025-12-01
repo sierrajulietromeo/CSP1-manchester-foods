@@ -334,7 +334,7 @@ const user = db.prepare(query).get(username, password);
 
 ## All 15 Vulnerabilities to Discover
 
-This application contains 15 intentional security vulnerabilities organized by severity. Use this as a checklist for your penetration test.
+This application contains 15 intentional security vulnerabilities organised by severity. Use this as a checklist for your penetration test.
 
 ### 🔴 CRITICAL Severity
 
@@ -367,11 +367,11 @@ This application contains 15 intentional security vulnerabilities organized by s
 **OWASP**: A03:2021 - Injection
 
 #### 4. Stored Cross-Site Scripting (XSS)
-**Locations**: Profile bio, order notes, contact form  
+**Locations**: Profile bio, order notes
 **Test payloads**:
-- `<script>alert('XSS')</script>`
-- `<script>alert(document.cookie)</script>`
-- `<img src=x onerror=alert('XSS')>`
+- `<img src=x onerror=alert('XSS')>` (Recommended for React apps)
+- `<img src=x onerror=alert(document.cookie)>`
+- Note: `<script>` tags may not execute due to browser protections against `innerHTML` insertion.
 **Impact**: Session hijacking, credential theft, defacement  
 **OWASP**: A03:2021 - Injection
 

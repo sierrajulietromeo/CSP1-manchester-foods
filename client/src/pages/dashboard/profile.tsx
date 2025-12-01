@@ -166,8 +166,8 @@ export default function Profile() {
                     <FormItem>
                       <FormLabel>About Your Business</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          {...field} 
+                        <Textarea
+                          {...field}
                           rows={4}
                           placeholder="Tell us about your business..."
                           data-testid="textarea-profile-bio"
@@ -178,8 +178,8 @@ export default function Profile() {
                   )}
                 />
 
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={updateMutation.isPending}
                   data-testid="button-save-profile"
                 >
@@ -204,6 +204,15 @@ export default function Profile() {
                 <p className="text-sm text-muted-foreground mb-1">Account Type</p>
                 <p className="font-medium text-foreground capitalize">{user?.role}</p>
               </div>
+              {user?.bio && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Bio (Public)</p>
+                  <div
+                    className="font-medium text-foreground prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: user.bio }}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
 

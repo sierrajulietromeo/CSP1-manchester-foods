@@ -102,6 +102,12 @@ export default function Orders() {
                     <TableRow key={order.id} data-testid={`row-order-${order.id}`}>
                       <TableCell className="font-medium">
                         {order.orderNumber}
+                        {order.notes && (
+                          <div
+                            className="text-xs text-muted-foreground mt-1"
+                            dangerouslySetInnerHTML={{ __html: order.notes }}
+                          />
+                        )}
                       </TableCell>
                       {isAdmin && (
                         <TableCell>
@@ -125,9 +131,9 @@ export default function Orders() {
                         <Badge
                           variant={
                             order.status === "delivered" ? "default" :
-                            order.status === "confirmed" ? "secondary" :
-                            order.status === "cancelled" ? "destructive" :
-                            "outline"
+                              order.status === "confirmed" ? "secondary" :
+                                order.status === "cancelled" ? "destructive" :
+                                  "outline"
                           }
                           data-testid={`badge-order-status-${order.id}`}
                         >
