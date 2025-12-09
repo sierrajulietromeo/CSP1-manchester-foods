@@ -171,7 +171,7 @@ export default function Dashboard() {
             <CardDescription>Manage your account and orders</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Link href="/dashboard/order">
+            <Link href="/dashboard/place-order">
               <Button className="w-full justify-start" data-testid="button-quick-new-order">
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 Place New Order

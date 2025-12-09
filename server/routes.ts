@@ -59,6 +59,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // VULNERABILITY: No security headers middleware
   // Missing: helmet, CORS restrictions, CSP, X-Frame-Options, etc.
 
+  // VULNERABILITY: Permissive CORS allowing CSRF attacks
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(sessionMiddleware);
 
   // VULNERABILITY: Verbose error handling exposing system details
@@ -187,16 +199,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // VULNERABILITY: XSS - bio field not sanitized, will be rendered as HTML
-    const { email, companyName, contactPerson, phone, address, bio } = req.body;
+    const updates: any = {};
+    if (req.body.email !== undefined) updates.email = req.body.email;
+    if (req.body.companyName !== undefined) updates.companyName = req.body.companyName;
+    if (req.body.contactPerson !== undefined) updates.contactPerson = req.body.contactPerson;
+    if (req.body.phone !== undefined) updates.phone = req.body.phone;
+    if (req.body.address !== undefined) updates.address = req.body.address;
+    if (req.body.bio !== undefined) updates.bio = req.body.bio; // VULNERABILITY: Stored XSS vector
 
-    const updated = await storage.updateUser(req.session.userId, {
-      email,
-      companyName,
-      contactPerson,
-      phone,
-      address,
-      bio, // VULNERABILITY: Stored XSS vector
-    });
+    const updated = await storage.updateUser(req.session.userId, updates);
 
     res.json(updated);
   });
