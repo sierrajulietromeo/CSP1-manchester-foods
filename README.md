@@ -267,15 +267,18 @@ Visit `/products` (no login required!)
 **Step 2: Try SQL Injection in Search**
 Enter in the search box:
 ```
-' OR '1'='1' --
+' UNION SELECT id, username, email, '', '', '', '', 0 FROM users --
 ```
 
 **Expected Result:**
-All products are returned, bypassing search filtering!
+User accounts (including admin!) appear in the product list mixed with regular products. You'll see usernames as product names and email addresses as descriptions.
 
-
-**Expected Result:**
-User accounts (including admin!) appear in the product list.
+**Alternative Payload (simpler):**
+For a basic test, you can also try:
+```
+' OR '1'='1' --
+```
+This returns all products (bypassing search filtering) but won't show user accounts.
 
 ### Why This is Extremely Dangerous
 
