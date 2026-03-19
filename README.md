@@ -39,7 +39,7 @@ Use these credentials to explore the application:
 ## Example Vulnerability: Viewing Other Users' Orders (IDOR)
 
 ### What is IDOR?
-Insecure Direct Object Reference (IDOR) occurs when an application exposes direct references to internal objects (like database IDs) without proper authorisation checks.
+You should know this?!
 
 ### How to Test This Vulnerability
 
@@ -103,9 +103,7 @@ curl -H "Cookie: connect.sid=your-session-cookie" http://<TARGETIP>:5000/api/ord
 - Customer company names
 
 ### Why This is Dangerous
-- **Privacy breach**: Competitors can see what other businesses are ordering
-- **Business intelligence**: Order patterns reveal business strategy
-- **Data protection violation**: GDPR breach exposing customer information
+- **You can research this!**
 
 ### Remediation
 The endpoint should verify ownership:
@@ -131,9 +129,7 @@ app.get("/api/orders/:id", async (req, res) => {
 ## Example Vulnerability: SQL Injection Authentication Bypass
 
 ### What is SQL Injection?
-SQL Injection occurs when untrusted user input is inserted into SQL queries without proper sanitisation, allowing attackers to manipulate database queries.
-
-**⚠️ IMPORTANT**: This application now uses a **real SQLite database** with genuinely vulnerable SQL queries (not simulated). All SQL injection testing tools like SQLmap will work authentically!
+You should know this!
 
 ### How to Test This Vulnerability
 
@@ -276,12 +272,8 @@ This returns all products (bypassing search filtering) but won't show user accou
 ### Why This is Extremely Dangerous
 
 **Real-World Impact:**
-- **Complete database compromise**: Attackers can read, modify, or delete all data
-- **Authentication bypass**: Access any account without passwords
-- **Data exfiltration**: Customer data, orders, financial information exposed
-- **Compliance violations**: GDPR, PCI-DSS breaches
-- **Reputational damage**: Customer trust destroyed
-- **Financial losses**: Fines, lawsuits, business disruption
+- **You can research this!**
+
 
 **OWASP Top 10**: A03:2021 - Injection  
 **CVSS Score**: 9.8 (Critical)
@@ -297,18 +289,16 @@ const user = db.prepare(query).get();
 
 **SECURE CODE (Recommended Fix):**
 ```typescript
-// ✅ SAFE: Parameterized queries
+// ✅ SAFE: Parameterised queries
 const query = `SELECT * FROM users WHERE username=? AND password=?`;
 const user = db.prepare(query).get(username, password);
 ```
 
 **Additional Security Layers:**
 1. **Input validation**: Whitelist allowed characters
-2. **Least privilege**: Database user shouldn't have DROP/DELETE permissions
-3. **WAF (Web Application Firewall)**: Detect and block SQL injection attempts
-4. **Hashed passwords**: Use bcrypt (plaintext passwords are another vulnerability!)
-5. **Prepared statements**: Always use parameterised queries
-
-
+2. I've given you one - you could research the rest!
+3. 
+4. 
+5. 
 
 #### Now, go on to look at the 'additional vulnerabilities' markdown document (`ADDITIONAL.md`)

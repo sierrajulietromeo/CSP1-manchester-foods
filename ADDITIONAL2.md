@@ -19,25 +19,16 @@
    - Company: `Test Company`
 3. Click **Register**
 
-**Expected Result:**
-✅ **Vulnerability Confirmed**: Registration succeeds with a 1-character password
-
-Summary: No complexity requirements/checks, any common passwords allowed
 
 **Expected Result:**
 ✅ **Vulnerability Confirmed**: All weak passwords are accepted
 
 **Why This is Dangerous:**
-- **Brute force attacks**: Easy to guess passwords
-- **Dictionary attacks**: Common passwords quickly cracked
-- **Credential stuffing**: Leaked passwords from other sites work
-- **Social engineering**: Predictable passwords
+- Research it yourself!
 
 **Industry Standards:**
 - **Minimum length**: 12+ characters (NIST recommendation)
-- **Complexity**: Mix of uppercase, lowercase, numbers, symbols
-- **Common password blocking**: Check against known weak passwords
-- **Password strength meter**: Visual feedback to users
+- Research more yourself!
 
 **Remediation:**
 ```typescript
@@ -217,10 +208,7 @@ Create `csrf-order.html`:
 ✅ **Vulnerability Confirmed**: An unauthorised order has been placed
 
 **Why This is Dangerous:**
-- **Unauthorised transactions**: Place orders, transfer funds
-- **Account modification**: Change email, password, profile
-- **Privilege escalation**: Add admin users
-- **Data manipulation**: Delete records, modify settings
+- Research it yourself!
 
 **Real-World Attack Scenario:**
 1. Attacker sends phishing email with link to malicious page
@@ -359,10 +347,7 @@ fetch('/api/orders', {
 - Internal implementation details
 
 **Why This is Dangerous:**
-- **Information disclosure**: Reveals technology stack
-- **Attack surface mapping**: Shows file structure
-- **Vulnerability identification**: Exposes SQL queries for injection testing
-- **Reconnaissance**: Helps attackers plan targeted attacks
+- Research it yourself!
 
 **What Attackers Learn:**
 - Database type and version
@@ -450,9 +435,7 @@ done
 ✅ **Vulnerability Confirmed**: All 100 requests succeed without blocking
 
 **Why This is Dangerous:**
-- **Brute force attacks**: Try thousands of passwords
-- **Credential stuffing**: Test leaked credentials
-- **Denial of Service**: Overwhelm server resources
+- Research it yourself!
 
 **Remediation:**
 ```typescript
@@ -543,9 +526,7 @@ fetch('/api/import-order', {
 ✅ **Vulnerability Confirmed**: File contents appear in the response
 
 **Why This is Dangerous:**
-- **File disclosure**: Read sensitive files
-- **SSRF**: Access internal network resources
-- **Denial of Service**: Billion laughs attack
+- Research it yourself!
 
 **Remediation:**
 ```typescript
@@ -607,9 +588,7 @@ curl http://<TARGETIP>:5000/robots.txt
 ```
 
 **Why This is Dangerous:**
-- **Source code exposure**: Reveals vulnerabilities
-- **Credential leaks**: Database passwords, API keys
-- **PII exposure**: Customer data
+- Research it yourself!
 
 **Remediation:**
 - Block access to sensitive directories
@@ -621,7 +600,6 @@ curl http://<TARGETIP>:5000/robots.txt
 
 ## Tool Recommendation Matrix
 
-Match each vulnerability to the best testing tool:
 
 | Vulnerability | Primary Tool | Alternative Tools |
 |--------------|--------------|-------------------|
@@ -719,81 +697,6 @@ nikto -h http://<TARGETIP>:5000 -Tuning x -o nikto-report.html -Format html
 
 **Review automated findings and prioritize manual verification**
 
----
-
-### Phase 3: Manual Exploitation (2-3 hours)
-
-**Test each vulnerability systematically:**
-
-**1. Authentication (30 min)**
-- [ ] SQL injection in login (`' OR '1'='1' --`)
-- [ ] Default credentials (`admin/admin123`)
-- [ ] Weak password policy (register with `a`)
-- [ ] Session predictability (login/logout 5x, analyze pattern)
-
-**2. Authorization (30 min)**
-- [ ] IDOR in orders (access other customer orders)
-- [ ] IDOR in profiles (view/edit other user profiles)
-- [ ] Admin functions accessible to customers
-
-**3. Injection Attacks (45 min)**
-- [ ] SQL injection in product search
-- [ ] Stored XSS in profile bio
-- [ ] Stored XSS in order notes
-- [ ] Stored XSS in contact form
-- [ ] XXE in order import (if implemented)
-
-**4. Information Disclosure (20 min)**
-- [ ] Verbose error messages (trigger errors)
-- [ ] Exposed secrets in JS source
-- [ ] Directory traversal attempts
-- [ ] Database credential exposure
-
-**5. Session Management (20 min)**
-- [ ] Cookie analysis (missing flags)
-- [ ] Session fixation
-- [ ] Session hijacking via predictable IDs
-
-**6. Security Controls (20 min)**
-- [ ] CSRF (create external form)
-- [ ] Rate limiting (100 login attempts)
-- [ ] SSRF (if /api/fetch-document exists)
-- [ ] LFI (if /api/view-document exists)
-
----
-
-### Phase 4: Documentation (1-2 hours)
-
-For each vulnerability found:
-
-1. **Take screenshots** showing the exploit
-2. **Save HTTP requests/responses** from Burp
-3. **Document exact reproduction steps**
-4. **Assess real-world impact**
-5. **Provide remediation recommendations**
-
-**Deliverable**: Professional penetration test report with:
-- Executive summary
-- Methodology
-- Findings (Critical → Low severity)
-- Evidence for each finding
-- Remediation roadmap
-
----
-
-## Professional Reporting
-
-When documenting vulnerabilities, include:
-
-1. **Vulnerability Title** (e.g., "IDOR in Order Viewing")
-2. **Severity Rating** (Critical/High/Medium/Low)
-3. **Description** - What the vulnerability is
-4. **Steps to Reproduce** - Detailed instructions
-5. **Evidence** - Screenshots, HTTP requests/responses
-6. **Impact** - What an attacker could do
-7. **Remediation** - How to fix it
-8. **CVSS Score** (if applicable)
-9. **OWASP Top 10 Reference** (e.g., A01:2021 - Broken Access Control)
 
 ---
 
@@ -812,19 +715,4 @@ When documenting vulnerabilities, include:
 - Deploy this vulnerable code to production
 - Use customer data outside this educational context
 
----
 
-## Need Help?
-
-**Instructor Documentation**: Navigate to `/instructor` and enter password `penetration-test-2024` for complete vulnerability details and testing hints.
-
-**Stuck on a vulnerability?**: The instructor docs provide:
-- All 15 vulnerability locations
-- Specific testing techniques
-- Tool recommendations
-- Expected impacts
-- Exploitation examples
-
----
-
-Happy ethical hacking! 🛡️

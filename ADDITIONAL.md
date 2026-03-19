@@ -73,14 +73,10 @@ Default credentials are often documented in README files or comments
 ✅ **Vulnerability Confirmed**: `admin/admin123` grants full administrative access
 
 **Why This is Dangerous:**
-- First thing attackers try
-- Automated scanners check for default credentials
-- No technical skill required to exploit
+- Research it yourself!
 
 **Remediation:**
-- Force password change on first login
-- Generate random initial passwords
-- Never use predictable defaults in production
+- Research it yourself!
 
 ---
 
@@ -136,10 +132,7 @@ In the **Bio** field, enter:
 ✅ **Vulnerability Confirmed**: Admin's session cookie is sent to attacker's server
 
 **Why This is Dangerous:**
-- **Session hijacking**: Steal admin cookies
-- **Credential harvesting**: Inject fake login forms
-- **Defacement**: Modify page content
-- **Keylogging**: Capture user input
+- Research it yourself!
 
 **Additional Payloads to Try:**
 ```html
@@ -207,9 +200,7 @@ fetch('/api/user/THEPUBCO_UUID_HERE')
 - Delivery addresses
 
 **Why This is Dangerous:**
-- **Privacy breach**: GDPR violation
-- **Competitive intelligence**: Discover all customers
-- **Targeted attacks**: Gather information for phishing
+- Research it yourself!
 
 **Remediation:**
 ```typescript
@@ -287,10 +278,7 @@ curl http://<TARGETIP>:5000/.git/config
 - **Infrastructure details**: PostgreSQL database
 
 **Why This is Dangerous:**
-- **Credential theft**: Direct database access
-- **Session forging**: Create valid session tokens with exposed secret
-- **Source code access**: Download entire codebase via .git
-- **Privilege escalation**: Use admin credentials
+- Research it yourself!
 
 **Remediation:**
 ```typescript
@@ -435,9 +423,7 @@ Pattern identified:
 ✅ **Poor randomness**: Burp will report predictable patterns
 
 **Why This is Dangerous:**
-- **Session hijacking**: Guess active session tokens
-- **Account takeover**: Access any user's account
-- **No credentials needed**: Bypass authentication entirely
+- Research it yourself!
 
 **Remediation:**
 ```typescript
@@ -543,10 +529,7 @@ curl -X POST http://<TARGETIP>:5000/api/fetch-document \
 ✅ **Vulnerability Confirmed**: Server fetches internal resources and returns them
 
 **Why This is Dangerous:**
-- **Cloud credential theft**: Access AWS/Azure metadata
-- **Internal network access**: Bypass firewalls
-- **Port scanning**: Map internal infrastructure
-- **Data exfiltration**: Read internal files
+- Research it yourself!
 
 **Remediation:**
 ```typescript
@@ -657,10 +640,7 @@ fetch('/api/view-document?file=server/routes.ts')
 - `.env` files with secrets (if they exist)
 
 **Why This is Dangerous:**
-- **Source code disclosure**: Reveals other vulnerabilities
-- **Credential theft**: Database passwords, API keys
-- **System reconnaissance**: User accounts, installed software
-- **Privilege escalation**: Information for further attacks
+- **Research it yourself!**
 
 **Remediation:**
 ```typescript
